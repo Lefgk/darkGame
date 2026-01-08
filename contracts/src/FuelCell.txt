@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {LibString} from "solady/src/utils/LibString.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {JourneyPhaseManager} from "./JourneyPhaseManager.sol";
+import {FuelCellStorage} from "./FuelCellStorage.sol";
+
+/// @title FuelCell Token Contract
+/// @notice This contract implements an ERC721 token called FuelCell.
+/// @dev Extends ERC721 token standard with minting and burning functionality controlled by the contract owner and a designated LaunchControlCenter.
+contract FuelCell is ERC721Upgradeable, Ownable2StepUpgradeable, UUPSUpgradeable, FuelCellStorage {
+    using LibString for uint256;
+
+    event LauncherUpdated(address newLaunchControlCenter);
+    event UpdatedBaseUri(string newBaseUri);
+    event UpdatedSuffix(string newSuffix);
+    event MintFuelCells(
+        address indexed to, uint256 indexed journeyId, uint256 indexed startTokenId, uint256 lastTokenId
+    );
+
+    /// @dev Custom errors
+    error NotLauncher();
+    error NotOwner();
+    error NotMinted();
+    error NotTreasury();
+    error InvalidLaunchControlCenter();
+    error InvalidInitialOwner();
+    error InvalidJourneyPhaseManager();
+
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @param _launchControlCenter Address of the LaunchControlCenter contract.
+    function initialize(
+        address _launchControlCenter,
+        address _initialOwner,
+        address _treasury,
+        JourneyPhaseManager _journeyPhaseManager,
+        string memory _initalBaseUri,
+        string memory _initialSuffix
+    ) external initializer {
+        __Ownable2Step_init();
+        _transferOwnership(_initialOwner);
+        __ERC721_init("FuelCell", "FUEL");
+        if (_launchControlCenter == address(0)) revert InvalidLaunchControlCenter();
+        if (_initialOwner == address(0)) revert InvalidInitialOwner();
+        if (address(_journeyPhaseManager) == address(0)) revert InvalidJourneyPhaseManager();
+        launchControlCenter = _launchControlCenter;
+        journeyPhaseManager = _journeyPhaseManager;
+        treasury = _treasury;
+        baseURI = _initalBaseUri;
+        suffix = _initialSuffix;
+        nextTokenId = 1;
+    }
+
+    /// @notice Ensures the caller is the LaunchControlCenter
+    modifier onlyLauncher() {
+        if (msg.sender != launchControlCenter) revert NotLauncher();
+        _;
+    }
+
+    modifier onlyTreasury() {
+        if (msg.sender != treasury) revert NotTreasury();
+        _;
+    }
+
+    /// @dev Mints a Fuel Cell to a specified address.
+    /// @notice Only LaunchControlCenter can mint new tokens.
+    /// @param to The address of the recipient to mint the token to.
+    function mint(address to, uint256 quantity) external onlyLauncher {
+        uint256 startTokenId = nextTokenId;
+        nextTokenId = startTokenId + quantity;
+        totalSupply = totalSupply + quantity;
+        uint256 lastTokenIdToBeMinted = startTokenId + quantity - 1;
+        journeyPhaseManager.registerTokenIdForJourney(startTokenId, lastTokenIdToBeMinted);
+        for (uint256 i = startTokenId; i <= lastTokenIdToBeMinted; i++) {
+            _mint(to, i);
+        }
+        emit MintFuelCells(to, journeyPhaseManager.currentJourney(), startTokenId, lastTokenIdToBeMinted);
+    }
+
+    /// @dev Burns an existing Fuel Cell token.
+    /// @param tokenId The ID of the token to be burned.
+    function burn(uint256 tokenId, uint256 journeyId) external onlyTreasury {
+        totalSupply = totalSupply - 1;
+        // when a token is burned, inform JPM that the token was burned
+        journeyPhaseManager.tokenBurned(journeyId);
+        _burn(tokenId);
+    }
+
+    /// @dev Updates the address of the LaunchControlCenter.
+    /// @notice This can only be called by the contract owner.
+    /// @param _launchControlCenter The new address for the LaunchControlCenter.
+    function updateLauncherAddress(address _launchControlCenter) external onlyOwner {
+        if (_launchControlCenter == address(0)) revert InvalidLaunchControlCenter();
+        launchControlCenter = _launchControlCenter;
+        emit LauncherUpdated(_launchControlCenter);
+    }
+
+    /// @dev Returns the Uniform Resource Identifier (URI) for token `id`.
+    function tokenURI(uint256 id) public view virtual override returns (string memory) {
+        return string(abi.encodePacked(baseURI, id.toString(), suffix));
+    }
+
+    function setBaseUri(string memory _newbaseUri) external onlyOwner {
+        baseURI = _newbaseUri;
+        emit UpdatedBaseUri(_newbaseUri);
+    }
+
+    function setSuffix(string memory _newSuffix) external onlyOwner {
+        suffix = _newSuffix;
+        emit UpdatedSuffix(_newSuffix);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {}
+}
