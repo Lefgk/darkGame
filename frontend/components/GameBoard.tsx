@@ -24,6 +24,8 @@ interface Ship {
   kills: number;
   damageDealt: number;
   hasActed: boolean;
+  isNPC?: boolean;
+  npcName?: string;
 }
 
 interface Loot {
@@ -225,6 +227,21 @@ export function GameBoard({ gameId }: GameBoardProps) {
     }
   };
 
+  // Check if player is adjacent to a position (for revealing loot)
+  const isAdjacentToPlayer = (x: number, y: number) => {
+    if (!myShip) return false;
+    return Math.abs(myShip.x - x) <= 1 && Math.abs(myShip.y - y) <= 1;
+  };
+
+  // Random star pattern based on coordinates (deterministic)
+  const getStarPattern = (x: number, y: number) => {
+    const seed = x * 8 + y;
+    if (seed % 7 === 0) return '✦';
+    if (seed % 11 === 0) return '✧';
+    if (seed % 13 === 0) return '·';
+    return '';
+  };
+
   // Render a single tile
   const renderTile = (x: number, y: number) => {
     const ship = getShipAt(x, y);
@@ -233,32 +250,39 @@ export function GameBoard({ gameId }: GameBoardProps) {
     const validMove = isValidMove(x, y);
     const validAttack = isValidAttack(x, y);
     const isMyShip = ship && address && ship.player.toLowerCase() === address.toLowerCase();
+    const isNPCShip = ship?.isNPC;
     const isSelected = selectedTile?.x === x && selectedTile?.y === y;
+    const canSeeLoot = isAdjacentToPlayer(x, y) || (myShip?.x === x && myShip?.y === y);
 
-    let tileClass = 'aspect-square border transition-all duration-200 relative flex items-center justify-center text-2xl ';
+    let tileClass = 'aspect-square border transition-all duration-200 relative flex items-center justify-center text-2xl overflow-hidden ';
 
-    // Base styling
+    // Base styling - space theme
     if (!inZone) {
-      tileClass += 'bg-red-900/40 border-red-500/30 '; // Storm zone
+      tileClass += 'bg-gradient-to-br from-purple-900/60 to-red-900/40 border-purple-500/30 '; // Cosmic storm
     } else {
-      tileClass += 'bg-gray-900/50 border-gray-700/50 hover:border-purple-500/50 ';
+      tileClass += 'bg-gradient-to-br from-slate-900 to-gray-900 border-indigo-900/30 hover:border-cyan-500/50 ';
     }
 
     // Highlight valid moves/attacks
     if (validMove) {
-      tileClass += 'bg-green-500/20 border-green-500/50 cursor-pointer hover:bg-green-500/30 ';
+      tileClass += 'bg-cyan-500/20 border-cyan-400/50 cursor-pointer hover:bg-cyan-500/30 ';
     } else if (validAttack) {
       tileClass += 'bg-red-500/20 border-red-500/50 cursor-pointer hover:bg-red-500/30 ';
     }
 
     // Selected tile
     if (isSelected) {
-      tileClass += 'ring-2 ring-purple-500 ';
+      tileClass += 'ring-2 ring-cyan-400 ';
     }
 
     // My ship highlight
     if (isMyShip && ship?.isAlive) {
       tileClass += 'ring-2 ring-yellow-400 ';
+    }
+
+    // NPC ship - red glow
+    if (isNPCShip && ship?.isAlive) {
+      tileClass += 'ring-1 ring-red-500/50 ';
     }
 
     return (
@@ -267,27 +291,39 @@ export function GameBoard({ gameId }: GameBoardProps) {
         className={tileClass}
         onClick={() => handleTileClick(x, y)}
       >
-        {/* Storm indicator */}
+        {/* Stars background */}
+        {!ship && !lootItem && inZone && (
+          <span className="absolute text-white/20 text-xs">{getStarPattern(x, y)}</span>
+        )}
+
+        {/* Cosmic storm effect */}
         {!inZone && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-30">
-            <span className="text-red-500 text-xs">X</span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-purple-400/40 text-lg animate-pulse">☄</span>
           </div>
         )}
 
         {/* Ship */}
         {ship && ship.isAlive && (
-          <div className={`relative z-10 ${isMyShip ? 'animate-pulse' : ''}`}>
-            <span className="text-3xl drop-shadow-lg">
+          <div className={`relative z-10 ${isMyShip ? 'animate-pulse' : ''} ${isNPCShip ? 'filter hue-rotate-180' : ''}`}>
+            <span className={`text-3xl drop-shadow-lg ${isNPCShip ? 'filter brightness-75' : ''}`}>
               {SHIP_CLASS_INFO[ship.shipClass].emoji}
             </span>
+            {/* NPC indicator */}
+            {isNPCShip && (
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] text-red-400 font-bold">
+                ☠
+              </span>
+            )}
             {/* HP bar */}
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-gray-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-green-500 transition-all"
+                className="h-full transition-all"
                 style={{
                   width: `${(ship.currentHP / SHIP_CLASS_INFO[ship.shipClass].stats.maxHP) * 100}%`,
-                  backgroundColor: ship.currentHP < SHIP_CLASS_INFO[ship.shipClass].stats.maxHP * 0.3 ? '#ef4444' :
-                                   ship.currentHP < SHIP_CLASS_INFO[ship.shipClass].stats.maxHP * 0.6 ? '#eab308' : '#22c55e'
+                  backgroundColor: isNPCShip ? '#ef4444' :
+                    ship.currentHP < SHIP_CLASS_INFO[ship.shipClass].stats.maxHP * 0.3 ? '#ef4444' :
+                    ship.currentHP < SHIP_CLASS_INFO[ship.shipClass].stats.maxHP * 0.6 ? '#eab308' : '#22c55e'
                 }}
               />
             </div>
@@ -300,12 +336,12 @@ export function GameBoard({ gameId }: GameBoardProps) {
 
         {/* Dead ship / Wreckage */}
         {ship && !ship.isAlive && (
-          <span className="text-xl opacity-50">X</span>
+          <span className="text-xl opacity-30">💀</span>
         )}
 
-        {/* Loot */}
-        {lootItem && !ship && (
-          <span className="text-xl animate-bounce">+</span>
+        {/* Loot - only visible when adjacent */}
+        {lootItem && !ship && canSeeLoot && (
+          <span className="text-xl animate-pulse text-yellow-400">⚡</span>
         )}
 
         {/* Attack animation - laser beam effect */}
@@ -319,8 +355,8 @@ export function GameBoard({ gameId }: GameBoardProps) {
         {/* Loot pickup animation */}
         {animation?.type === 'loot' && animation.toX === x && animation.toY === y && (
           <div className="absolute inset-0 z-20 flex items-center justify-center">
-            <div className="absolute inset-0 bg-green-500/30 animate-pulse rounded" />
-            <span className="text-2xl animate-bounce">✨</span>
+            <div className="absolute inset-0 bg-yellow-500/30 animate-pulse rounded" />
+            <span className="text-2xl animate-bounce">⚡</span>
           </div>
         )}
 
@@ -333,7 +369,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
         )}
 
         {/* Coordinate label */}
-        <span className="absolute bottom-0 right-0.5 text-[8px] text-gray-600">
+        <span className="absolute bottom-0 right-0.5 text-[8px] text-indigo-800/50">
           {String.fromCharCode(65 + x)}{y + 1}
         </span>
       </div>
@@ -579,7 +615,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
               </div>
 
               {/* The Grid */}
-              <div className="flex-1 grid grid-cols-8 gap-1 bg-gray-800/30 p-2 rounded-xl border border-gray-700">
+              <div className="flex-1 grid grid-cols-8 gap-1 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-2 rounded-xl border border-indigo-800/50">
                 {Array.from({ length: 64 }).map((_, i) => {
                   const x = i % 8;
                   const y = Math.floor(i / 8);
@@ -591,65 +627,89 @@ export function GameBoard({ gameId }: GameBoardProps) {
             {/* Legend */}
             <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-gray-400">
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-red-900/40 border border-red-500/30 rounded" />
-                <span>Storm Zone</span>
+                <div className="w-4 h-4 bg-gradient-to-br from-purple-900/60 to-red-900/40 border border-purple-500/30 rounded" />
+                <span>Cosmic Storm</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-green-500/20 border border-green-500/50 rounded" />
-                <span>Valid Move</span>
+                <div className="w-4 h-4 bg-cyan-500/20 border border-cyan-400/50 rounded" />
+                <span>Warp Zone</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-4 h-4 bg-red-500/20 border border-red-500/50 rounded" />
-                <span>Valid Attack</span>
+                <span>Target Lock</span>
               </div>
               <div className="flex items-center gap-1">
-                <span>+</span>
-                <span>Loot</span>
+                <span className="text-red-400">☠</span>
+                <span>Enemy</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-400">⚡</span>
+                <span>Energy</span>
               </div>
             </div>
           </div>
 
           {/* Right Panel - All Ships */}
           <div className="lg:col-span-1">
-            <div className="p-4 rounded-xl border border-gray-700 bg-gray-900/50">
-              <h4 className="font-bold text-gray-300 mb-4">All Ships ({allShips.length})</h4>
+            <div className="p-4 rounded-xl border border-indigo-900/50 bg-slate-900/50">
+              <h4 className="font-bold text-cyan-400 mb-4">Radar ({allShips.filter(s => s.isAlive).length} active)</h4>
               {allShips.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No ships yet</p>
+                <p className="text-gray-500 text-sm text-center py-4">No contacts</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-80 overflow-y-auto">
                   {allShips
-                    .sort((a, b) => (b.isAlive ? 1 : 0) - (a.isAlive ? 1 : 0))
+                    .sort((a, b) => {
+                      // Sort: alive first, then player before NPC, then by HP
+                      if (a.isAlive !== b.isAlive) return b.isAlive ? 1 : -1;
+                      if (a.isNPC !== b.isNPC) return a.isNPC ? 1 : -1;
+                      return b.currentHP - a.currentHP;
+                    })
                     .map((ship, i) => {
                       const info = SHIP_CLASS_INFO[ship.shipClass];
                       const isMe = address && ship.player.toLowerCase() === address.toLowerCase();
+                      const isNPC = ship.isNPC;
                       return (
                         <div
                           key={i}
                           className={`p-2 rounded-lg border ${
-                            !ship.isAlive ? 'opacity-50 border-gray-700 bg-gray-800/30' :
+                            !ship.isAlive ? 'opacity-40 border-gray-700 bg-gray-900/30' :
                             isMe ? 'border-yellow-500/50 bg-yellow-500/10' :
-                            'border-gray-700 bg-gray-800/30'
+                            isNPC ? 'border-red-500/30 bg-red-900/20' :
+                            'border-cyan-500/30 bg-cyan-900/20'
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xl">{ship.isAlive ? info.emoji : 'X'}</span>
+                            <span className={`text-xl ${isNPC && ship.isAlive ? 'filter hue-rotate-180 brightness-75' : ''}`}>
+                              {ship.isAlive ? info.emoji : '💀'}
+                            </span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1">
-                                <span className={`text-sm font-bold ${info.color}`}>{info.name}</span>
-                                {isMe && <span className="text-xs text-yellow-400">(YOU)</span>}
+                                {isNPC ? (
+                                  <>
+                                    <span className="text-sm font-bold text-red-400">{ship.npcName}</span>
+                                    <span className="text-[10px] text-red-500">☠</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className={`text-sm font-bold ${isMe ? 'text-yellow-400' : 'text-cyan-400'}`}>
+                                      {info.name}
+                                    </span>
+                                    {isMe && <span className="text-xs text-yellow-400">(YOU)</span>}
+                                  </>
+                                )}
                               </div>
                               <div className="text-xs text-gray-500 truncate">
-                                {ship.player.slice(0, 6)}...{ship.player.slice(-4)}
+                                {isNPC ? info.name : `${ship.player.slice(0, 6)}...${ship.player.slice(-4)}`}
                               </div>
                             </div>
                             <div className="text-right text-xs">
                               {ship.isAlive ? (
                                 <>
-                                  <div className="font-bold">{ship.currentHP} HP</div>
+                                  <div className={`font-bold ${isNPC ? 'text-red-400' : 'text-white'}`}>{ship.currentHP} HP</div>
                                   <div className="text-gray-500">{ship.kills} kills</div>
                                 </>
                               ) : (
-                                <span className="text-red-400">DEAD</span>
+                                <span className="text-gray-600">DESTROYED</span>
                               )}
                             </div>
                           </div>
@@ -657,7 +717,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
                           {ship.isAlive && (
                             <div className="mt-1 h-1 bg-gray-700 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-green-500"
+                                className={`h-full ${isNPC ? 'bg-red-500' : 'bg-cyan-500'}`}
                                 style={{ width: `${(ship.currentHP / info.stats.maxHP) * 100}%` }}
                               />
                             </div>

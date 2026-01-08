@@ -34,6 +34,8 @@ interface Ship {
   hasActed: boolean;
   tokenId: number;
   journeyId: number;
+  isNPC?: boolean;
+  npcName?: string;
 }
 
 interface Loot {
@@ -131,8 +133,14 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', games: games.size });
 });
 
+// NPC names for enemies
+const NPC_NAMES = ['Void Hunter', 'Star Pirate', 'Nebula Ghost', 'Dark Raider', 'Cosmic Reaper', 'Shadow Cruiser', 'Plasma Wraith', 'Quantum Stalker'];
+
 // Create game
 app.post('/game/create', (req, res) => {
+  const { npcCount = 5 } = req.body || {};
+  const numNPCs = Math.min(Math.max(0, Number(npcCount) || 5), 10); // 0-10 NPCs
+
   gameCounter++;
   const game: Game = {
     gameId: gameCounter,
@@ -150,8 +158,34 @@ app.post('/game/create', (req, res) => {
     thirdPlace: '0x0000000000000000000000000000000000000000',
     actionLog: [],
   };
+
+  // Add NPC enemies
+  for (let i = 0; i < numNPCs; i++) {
+    const shipClass = Math.floor(Math.random() * 5); // Random ship class 0-4
+    const stats = SHIP_CLASSES[shipClass as keyof typeof SHIP_CLASSES];
+    const spawn = getRandomSpawn(game.ships);
+
+    const npcShip: Ship = {
+      player: `0xNPC${i.toString().padStart(38, '0')}`, // Fake NPC address
+      shipClass,
+      currentHP: stats.hp,
+      maxHP: stats.hp,
+      x: spawn.x,
+      y: spawn.y,
+      isAlive: true,
+      kills: 0,
+      damageDealt: 0,
+      hasActed: false,
+      tokenId: 0,
+      journeyId: 0,
+      isNPC: true,
+      npcName: NPC_NAMES[i % NPC_NAMES.length],
+    };
+    game.ships.push(npcShip);
+  }
+
   games.set(gameCounter, game);
-  res.json({ success: true, gameId: gameCounter });
+  res.json({ success: true, gameId: gameCounter, npcCount: numNPCs });
 });
 
 // Join game
@@ -353,6 +387,11 @@ function advanceTurn(game: Game) {
   // Reset hasActed for all ships
   game.ships.forEach(s => s.hasActed = false);
 
+  // NPC AI: Each NPC takes an action
+  game.ships.filter(s => s.isNPC && s.isAlive).forEach(npc => {
+    performNPCAction(game, npc);
+  });
+
   // Zone shrink every 3 turns
   if (game.turn % 3 === 0 && game.zoneSize > 4) {
     game.zoneSize--;
@@ -364,12 +403,13 @@ function advanceTurn(game: Game) {
       if (ship.isAlive && !isInSafeZone(ship.x, ship.y, game.zoneOffset, game.zoneSize)) {
         const damage = 20;
         ship.currentHP -= damage;
-        game.actionLog.push(`${ship.player.slice(0, 6)}... takes ${damage} zone damage`);
+        const name = ship.isNPC ? ship.npcName : ship.player.slice(0, 6) + '...';
+        game.actionLog.push(`${name} takes ${damage} zone damage`);
 
         if (ship.currentHP <= 0) {
           ship.currentHP = 0;
           ship.isAlive = false;
-          game.actionLog.push(`${ship.player.slice(0, 6)}... died to the zone!`);
+          game.actionLog.push(`${name} died to the zone!`);
         }
       }
     });
@@ -380,29 +420,115 @@ function advanceTurn(game: Game) {
   game.actionLog.push(`Turn ${game.turn} started`);
 }
 
+// NPC AI logic
+function performNPCAction(game: Game, npc: Ship) {
+  const stats = SHIP_CLASSES[npc.shipClass as keyof typeof SHIP_CLASSES];
+  const enemies = game.ships.filter(s => s.isAlive && s.player !== npc.player);
+
+  if (enemies.length === 0) return;
+
+  // Find closest enemy
+  let closestEnemy: Ship | null = null;
+  let closestDist = Infinity;
+  enemies.forEach(enemy => {
+    const dist = distance(npc.x, npc.y, enemy.x, enemy.y);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closestEnemy = enemy;
+    }
+  });
+
+  if (!closestEnemy) return;
+
+  // If enemy in range, attack
+  if (closestDist <= stats.range) {
+    const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
+    closestEnemy.currentHP -= damage;
+    npc.damageDealt += damage;
+    npc.hasActed = true;
+
+    const targetName = closestEnemy.isNPC ? closestEnemy.npcName : closestEnemy.player.slice(0, 6) + '...';
+    game.actionLog.push(`${npc.npcName} attacks ${targetName} for ${damage} damage!`);
+
+    if (closestEnemy.currentHP <= 0) {
+      closestEnemy.currentHP = 0;
+      closestEnemy.isAlive = false;
+      npc.kills++;
+      game.actionLog.push(`${npc.npcName} destroyed ${targetName}!`);
+
+      // Drop loot
+      game.loot.push({ x: closestEnemy.x, y: closestEnemy.y, amount: 25, collected: false });
+      checkGameEnd(game);
+    }
+  } else {
+    // Move toward enemy
+    let bestX = npc.x;
+    let bestY = npc.y;
+    let bestDist = closestDist;
+
+    // Check all possible moves
+    for (let dx = -stats.speed; dx <= stats.speed; dx++) {
+      for (let dy = -stats.speed; dy <= stats.speed; dy++) {
+        const newX = npc.x + dx;
+        const newY = npc.y + dy;
+
+        if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) continue;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) > stats.speed) continue;
+        if (game.ships.some(s => s.isAlive && s.x === newX && s.y === newY)) continue;
+
+        const newDist = distance(newX, newY, closestEnemy!.x, closestEnemy!.y);
+        if (newDist < bestDist) {
+          bestDist = newDist;
+          bestX = newX;
+          bestY = newY;
+        }
+      }
+    }
+
+    if (bestX !== npc.x || bestY !== npc.y) {
+      npc.x = bestX;
+      npc.y = bestY;
+      npc.hasActed = true;
+
+      // Check for loot
+      const loot = game.loot.find(l => !l.collected && l.x === bestX && l.y === bestY);
+      if (loot) {
+        npc.currentHP = Math.min(npc.maxHP, npc.currentHP + loot.amount);
+        loot.collected = true;
+        game.actionLog.push(`${npc.npcName} collected ${loot.amount} HP`);
+      }
+    }
+  }
+}
+
 // Helper: Check if game should end
 function checkGameEnd(game: Game) {
   const alive = game.ships.filter(s => s.isAlive);
+  const alivePlayers = alive.filter(s => !s.isNPC);
+  const aliveNPCs = alive.filter(s => s.isNPC);
 
-  // Don't end if only 1 player total (solo testing mode)
-  if (game.ships.length === 1) return;
+  // Game ends if: no players left, or only 1 entity left total
+  const shouldEnd = alivePlayers.length === 0 || alive.length <= 1;
 
-  if (alive.length <= 1) {
-    game.state = 2;
+  if (!shouldEnd) return;
 
-    // Sort by: alive first, then kills, then damage
-    const ranked = [...game.ships].sort((a, b) => {
-      if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
-      if (a.kills !== b.kills) return b.kills - a.kills;
-      return b.damageDealt - a.damageDealt;
-    });
+  game.state = 2;
 
-    game.winner = ranked[0]?.player || '0x0000000000000000000000000000000000000000';
-    game.secondPlace = ranked[1]?.player || '0x0000000000000000000000000000000000000000';
-    game.thirdPlace = ranked[2]?.player || '0x0000000000000000000000000000000000000000';
+  // Sort by: alive first, then non-NPC, then kills, then damage
+  const ranked = [...game.ships].sort((a, b) => {
+    if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
+    if (a.isNPC !== b.isNPC) return a.isNPC ? 1 : -1; // Players rank higher
+    if (a.kills !== b.kills) return b.kills - a.kills;
+    return b.damageDealt - a.damageDealt;
+  });
 
-    game.actionLog.push(`Game Over! Winner: ${game.winner.slice(0, 6)}...`);
-  }
+  game.winner = ranked[0]?.player || '0x0000000000000000000000000000000000000000';
+  game.secondPlace = ranked[1]?.player || '0x0000000000000000000000000000000000000000';
+  game.thirdPlace = ranked[2]?.player || '0x0000000000000000000000000000000000000000';
+
+  const winnerShip = ranked[0];
+  const winnerName = winnerShip?.isNPC ? winnerShip.npcName : winnerShip?.player.slice(0, 6) + '...';
+  game.actionLog.push(`Game Over! Winner: ${winnerName}`);
 }
 
 // Helper: Serialize game for JSON response

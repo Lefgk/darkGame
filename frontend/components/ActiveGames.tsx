@@ -32,6 +32,7 @@ export function ActiveGames() {
     const [mounted, setMounted] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [npcCount, setNpcCount] = useState<number>(5);
 
     useEffect(() => {
         setMounted(true);
@@ -76,6 +77,7 @@ export function ActiveGames() {
             const res = await fetch(`${API_URL}/game/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ npcCount }),
             });
 
             if (!res.ok) throw new Error('Failed to create game');
@@ -181,27 +183,46 @@ export function ActiveGames() {
             )}
 
             {/* Create New Game */}
-            <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-xl p-8 backdrop-blur-sm border-2 border-purple-500">
+            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-xl p-8 backdrop-blur-sm border-2 border-cyan-500/50">
                 <div className="text-center">
-                    <h3 className="text-3xl font-bold mb-4 text-white">Start a New Arena</h3>
+                    <h3 className="text-3xl font-bold mb-4 text-cyan-400">Enter the Dark Arena</h3>
                     <p className="text-gray-300 mb-6">
-                        Create a new battle arena. <span className="font-bold text-green-400">Instant gameplay - no blockchain wait!</span>
-                        <br />
-                        <span className="text-yellow-400">Game can start with just 1 player for testing!</span>
+                        Battle against AI enemies in deep space. <span className="font-bold text-green-400">Instant combat!</span>
                     </p>
+
+                    {/* NPC Count Slider */}
+                    <div className="mb-6 max-w-xs mx-auto">
+                        <label className="block text-sm text-gray-400 mb-2">
+                            Enemy Ships: <span className="text-red-400 font-bold">{npcCount}</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            value={npcCount}
+                            onChange={(e) => setNpcCount(Number(e.target.value))}
+                            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-red-500"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0 (Solo)</span>
+                            <span>5</span>
+                            <span>10 (Hard)</span>
+                        </div>
+                    </div>
+
                     <button
                         onClick={handleCreateGame}
                         disabled={!isConnected || isProcessing}
                         className={`text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg transition-all ${
                             isConnected && !isProcessing
-                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/50 hover:scale-105 cursor-pointer'
+                                ? 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 shadow-cyan-500/50 hover:scale-105 cursor-pointer'
                                 : 'bg-gray-600 cursor-not-allowed opacity-50'
                         }`}
                     >
-                        {isProcessing ? 'Creating...' : 'Create Game'}
+                        {isProcessing ? 'Launching...' : `Launch Arena (${npcCount} enemies)`}
                     </button>
                     {!isConnected && (
-                        <p className="text-yellow-400 text-sm mt-2">Connect wallet to create a game</p>
+                        <p className="text-yellow-400 text-sm mt-2">Connect wallet to enter the arena</p>
                     )}
                 </div>
             </div>
