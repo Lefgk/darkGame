@@ -107,19 +107,63 @@ Tiles are hidden until explored (fog of war).
 
 ---
 
-## Ship Stats
+## Ship Classes & Abilities
 
-Your FuelCell's journey determines your ship class. Older journeys = rarer = stronger ships.
+Your FuelCell's journey determines your ship class. Each class has unique stats + abilities.
 
-| Journey | Ship Class | HP | Attack | Defense |
-|---------|------------|-----|--------|---------|
-| J1 | Titan-Class | 125 | 13 | 7 |
-| J2-5 | Dreadnought | 120 | 12 | 7 |
-| J6-10 | Cruiser | 115 | 12 | 6 |
-| J11-20 | Frigate | 110 | 11 | 6 |
-| J21-33 | Fighter | 105 | 11 | 5 |
+### Stats by Class
 
-*Base: 100 HP, 10 Attack, 5 Defense + journey bonuses*
+| Journey | Class | HP | Attack | Defense | Speed | Playstyle |
+|---------|-------|-----|--------|---------|-------|-----------|
+| **J1** | Titan | 130 | 14 | 8 | 1 | Brawler |
+| **J2-5** | Dreadnought | 125 | 13 | 8 | 1 | Tank |
+| **J6-10** | Cruiser | 115 | 12 | 6 | 1 | Support |
+| **J11-20** | Frigate | 105 | 11 | 5 | 1 | Assassin |
+| **J21-33** | Fighter | 100 | 12 | 4 | 2 | Glass Cannon |
+
+### Passive Abilities (Always Active)
+
+| Class | Passive | Effect |
+|-------|---------|--------|
+| Titan | **Intimidate** | Adjacent enemies deal -2 damage to you |
+| Dreadnought | **Heavy Armor** | Take -2 damage from all sources |
+| Cruiser | **Balanced Systems** | +5 HP when picking up any loot |
+| Frigate | **Evasive** | 25% chance to dodge attacks |
+| Fighter | **Swift** | Can move 2 tiles per turn |
+
+### Active Abilities (3 Turn Cooldown)
+
+| Class | Ability | Effect |
+|-------|---------|--------|
+| Titan | **Void Blast** | Deal 8 damage to ALL 8 adjacent tiles |
+| Dreadnought | **Ram** | Move + attack in one action, +5 bonus damage |
+| Cruiser | **EMP Pulse** | Stun all adjacent ships for 1 turn |
+| Frigate | **Cloak** | Invisible for 2 turns (can still attack) |
+| Fighter | **Ambush** | Next attack deals 2x damage |
+
+### Ability Visuals
+
+**Titan - Void Blast:**
+```
+┌───┬───┬───┐
+│ 8 │ 8 │ 8 │  Deals 8 damage
+├───┼───┼───┤  to ALL adjacent
+│ 8 │ T │ 8 │
+├───┼───┼───┤  T = Titan
+│ 8 │ 8 │ 8 │
+└───┴───┴───┘
+```
+
+**Cruiser - EMP Pulse:**
+```
+┌───┬───┬───┐
+│ ⚡│ ⚡│ ⚡│  All adjacent
+├───┼───┼───┤  ships STUNNED
+│ ⚡│ C │ ⚡│  (skip next turn)
+├───┼───┼───┤
+│ ⚡│ ⚡│ ⚡│  C = Cruiser
+└───┴───┴───┘
+```
 
 ---
 
@@ -143,12 +187,21 @@ Each turn you choose ONE action:
 
 ### Weapons (Permanent Attack Boost)
 
-| Weapon | Bonus | Rarity |
-|--------|-------|--------|
-| Laser Cannon | +3 Attack | Common |
-| Plasma Blaster | +5 Attack | Uncommon |
-| Ion Disruptor | +8 Attack | Rare |
-| Void Cannon | +12 Attack | Legendary |
+| Weapon | Attack | Type | Crit Bonus | Rarity |
+|--------|--------|------|------------|--------|
+| Laser Cannon | +3 | Melee | +0% | Common |
+| Plasma Blaster | +5 | Melee | +5% | Uncommon |
+| Sniper Beam | +4 | Ranged | +10% | Uncommon |
+| Scatter Gun | +3 | AOE | +0% | Uncommon |
+| Piercing Lance | +6 | Piercing | +5% | Rare |
+| Ion Disruptor | +8 | Melee | +10% | Rare |
+| Void Cannon | +12 | Melee | +15% | Legendary |
+
+**Weapon Types:**
+- **Melee**: Standard 1-tile range
+- **Ranged**: Can hit 2 tiles away (-3 damage at range)
+- **AOE**: Hits all adjacent enemies (damage split)
+- **Piercing**: Ignores 50% of target's defense
 
 ### Armor (Permanent Defense Boost)
 
@@ -194,6 +247,21 @@ NPC ships patrol the grid. Kill them for rewards.
 
 ## Combat
 
+### Basic Rules
+
+- Can only attack ships **adjacent** to you (8 tiles around)
+- Ranged weapons can hit 2 tiles away
+
+```
+     ┌───┬───┬───┐
+     │ ✓ │ ✓ │ ✓ │  ✓ = Valid attack targets
+     ├───┼───┼───┤
+     │ ✓ │YOU│ ✓ │  (melee range)
+     ├───┼───┼───┤
+     │ ✓ │ ✓ │ ✓ │
+     └───┴───┴───┘
+```
+
 ### Damage Formula
 
 ```
@@ -205,15 +273,95 @@ If defender used "Shields Up":
 Damage = (Attack - Defense) × 0.5
 ```
 
-### Example
+### Critical Hits
 
-Your ship: 12 Attack + Plasma Blaster (+5) = **17 Attack**
+- **Base crit chance**: 10%
+- **Crit damage**: 2x normal damage
+- Some weapons add bonus crit chance
 
-Enemy ship: 6 Defense + Hull Plating (+3) = **9 Defense**
+### Weapon Types
+
+| Type | Range | Special |
+|------|-------|---------|
+| Melee | 1 tile | Standard damage |
+| Ranged | 2 tiles | -3 damage at range |
+| AOE | Adjacent | Splits damage across all targets |
+| Piercing | 1 tile | Ignores 50% of defense |
+
+### Combat Example
+
+Your ship: 14 Attack + Piercing Lance (+6, ignores 50% def) = **20 Attack**
+
+Enemy ship: 5 Defense + Shield Generator (+5) = **10 Defense**
 
 ```
-Damage = 17 - 9 = 8 HP
+Their effective defense: 10 × 0.5 (piercing) = 5
+Damage = 20 - 5 = 15 HP
+
+Crit roll (10% chance): If crit → 30 HP damage!
 ```
+
+### Turn Order
+
+All players submit actions in same 10-second window. Then:
+
+1. All **movements** resolve
+2. All **attacks** resolve simultaneously
+3. All **loot pickups** resolve
+4. **NPCs** attack nearby players
+5. **Storm damage** applied
+6. **Dead ships** removed, wreckage spawns
+
+*Simultaneous attacks = mutual kills possible*
+
+---
+
+## Kill Rewards
+
+**No healing on kills.** Instead you get bounty + salvage.
+
+### Bounty System
+
+Kills add PLS to your **personal winnings** (separate from prize pool):
+
+| Target | Bounty |
+|--------|--------|
+| Scout Drone | +5 PLS |
+| Patrol Ship | +15 PLS |
+| Destroyer | +30 PLS |
+| Battlecruiser | +75 PLS |
+| **Player** | +25 PLS |
+
+**Inheritance**: Kill a player who had kills → you get 50% of their accumulated bounty.
+
+Example: Kill player with 3 kills (75 PLS bounty):
+- Base: 25 PLS
+- Inherited: 37 PLS (50% of their 75)
+- **Total: 62 PLS**
+
+### Salvage System
+
+Destroyed ships leave **wreckage** on their tile. Move there to salvage.
+
+```
+  Kill:              Wreckage:           Salvage:
+┌───┬───┐          ┌───┬───┐          ┌───┬───┐
+│YOU│ E │    →     │YOU│ † │    →     │   │YOU│  (got loot!)
+└───┴───┘          └───┴───┘          └───┴───┘
+```
+
+**Salvage Drops:**
+
+| Drop | Chance | Notes |
+|------|--------|-------|
+| Repair Kit | 40% | +20 HP |
+| EMP Bomb | 20% | Stun consumable |
+| Emergency Warp | 15% | Teleport consumable |
+| Cloaking Device | 10% | 2 turn invis |
+| Random Weapon | 10% | Player kills only |
+| Random Armor | 5% | Player kills only |
+
+*Player wreckage has better drops than NPC wreckage.*
 
 ---
 
@@ -291,10 +439,72 @@ Prize Pool: 100%
 
 ## Randomness
 
-- Seed generated at game start from block data + player addresses
-- Deterministic: same seed = same board layout
-- All players can verify fairness
-- No external oracle needed
+### How It Works
+
+When game starts (5+ players), a **seed** is generated once and locked:
+
+```
+Seed = Hash(block.prevrandao + timestamp + gameId + all player addresses)
+```
+
+This single seed determines EVERYTHING for that game.
+
+### What Randomness Controls
+
+| Event | How It's Calculated |
+|-------|---------------------|
+| **Board Layout** | Seed + "board" → which tiles have loot, enemies, traps |
+| **Spawn Positions** | Seed + "spawns" → where each player starts |
+| **Loot Contents** | Seed + tile position → what item is on each tile |
+| **Crit Rolls** | Seed + turn + attacker → did attack crit? |
+| **Dodge Rolls** | Seed + turn + defender → did Frigate evade? |
+| **Salvage Drops** | Seed + kill position → what drops from wreckage |
+| **NPC Movement** | Seed + turn → which direction enemies patrol |
+
+### Example: Critical Hit Roll
+
+```
+Turn 15, Player 0xABC attacks:
+
+Random = Hash(gameSeed + "crit" + turn15 + 0xABC)
+Roll = Random % 100
+
+Base crit chance: 10%
+Weapon bonus: +5% (Plasma Blaster)
+Total: 15%
+
+If Roll < 15 → CRITICAL HIT (2x damage)
+```
+
+### Example: Board Generation
+
+```
+For each tile (0-63):
+  TileRandom = Hash(gameSeed + "tile" + position)
+  TileType = TileRandom % 100
+
+  0-50:   Empty space
+  51-70:  Debris field (loot)
+  71-80:  Enemy patrol
+  81-90:  Nebula
+  91-95:  Asteroid (trap)
+  96-100: High-value loot
+```
+
+### Why This System
+
+| Benefit | Explanation |
+|---------|-------------|
+| **No Oracle** | All on-chain, no external dependency |
+| **Cheap** | No VRF fees, just hash operations |
+| **Fast** | Instant, no waiting for randomness |
+| **Fair** | Seed locked at start, can't be manipulated mid-game |
+| **Verifiable** | Anyone can recalculate all outcomes post-game |
+| **Deterministic** | Same seed = exact same game replay |
+
+### Hidden But Pre-Determined
+
+The entire board is generated at game start, but tiles stay **hidden** (fog of war) until a player moves adjacent. You don't know what's on tile E5 until someone explores it - but it was already decided by the seed.
 
 ---
 
