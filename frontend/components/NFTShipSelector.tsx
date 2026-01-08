@@ -15,6 +15,24 @@ interface FuelCellNFT {
 // PulseScan API base URL
 const PULSESCAN_API = 'https://api.scan.pulsechain.com/api/v2';
 
+// Space-themed placeholder images for testing
+const SPACE_IMAGES = [
+    'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=200&h=200&fit=crop', // Earth from space
+    'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=200&h=200&fit=crop', // Nebula
+    'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=200&h=200&fit=crop', // Galaxy
+    'https://images.unsplash.com/photo-1545156521-77bd85671d30?w=200&h=200&fit=crop', // Astronaut
+    'https://images.unsplash.com/photo-1516339901601-2e1b62dc0c45?w=200&h=200&fit=crop', // Space station
+    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200&h=200&fit=crop', // Earth night
+    'https://images.unsplash.com/photo-1484589065579-248aad0d628b?w=200&h=200&fit=crop', // Saturn
+    'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=200&h=200&fit=crop', // Stars
+    'https://images.unsplash.com/photo-1454789548928-9efd52dc4031?w=200&h=200&fit=crop', // Astronaut helmet
+    'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?w=200&h=200&fit=crop', // Milky way
+];
+
+const getRandomSpaceImage = (seed: number) => {
+    return SPACE_IMAGES[seed % SPACE_IMAGES.length];
+};
+
 export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number, journeyId: number) => void }) {
     const { address, isConnected } = useAccount();
     const [selectedToken, setSelectedToken] = useState<number | null>(null);
@@ -114,7 +132,24 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
         return 1;
     };
 
-    // Fetch NFTs using PulseScan API
+    // Generate mock NFTs for testing with space images
+    const generateMockNFTs = (): FuelCellNFT[] => {
+        const mockNFTs: FuelCellNFT[] = [];
+        // Generate 8 mock NFTs with different journeys
+        const journeys = [1, 2, 3, 5, 8, 12, 18, 25];
+        journeys.forEach((journeyId, index) => {
+            const shipData = getShipFromJourney(journeyId);
+            mockNFTs.push({
+                tokenId: 1000 + index,
+                journeyId,
+                image: getRandomSpaceImage(index),
+                ...shipData
+            });
+        });
+        return mockNFTs;
+    };
+
+    // Fetch NFTs using PulseScan API (with mock fallback for testing)
     useEffect(() => {
         if (!mounted || !address) {
             setUserNFTs([]);
@@ -143,8 +178,10 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
                         item.token?.address_hash?.toLowerCase() === ADDRESSES.FUELCELL_NFT.toLowerCase()
                 );
 
+                // If no real NFTs, use mock data for testing
                 if (fuelCellNFTs.length === 0) {
-                    setUserNFTs([]);
+                    console.log('No FuelCell NFTs found, using mock data for testing');
+                    setUserNFTs(generateMockNFTs());
                     setLoading(false);
                     return;
                 }
@@ -155,10 +192,14 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
                 for (const item of fuelCellNFTs.slice(0, 20)) {
                     const tokenId = parseInt(item.id, 10);
 
-                    // Get image from metadata
+                    // Get image from metadata, fallback to space image
                     let image = item.image_url || item.metadata?.image || item.metadata?.image_url || '';
                     if (image.startsWith('ipfs://')) {
                         image = image.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                    }
+                    // Use space image as fallback
+                    if (!image) {
+                        image = getRandomSpaceImage(tokenId);
                     }
 
                     // Try to get journey from metadata attributes
@@ -189,7 +230,9 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
 
             } catch (e) {
                 console.error('Error fetching NFTs:', e);
-                setError('Failed to load NFTs from API');
+                // On error, use mock data for testing
+                console.log('Using mock NFT data for testing');
+                setUserNFTs(generateMockNFTs());
             } finally {
                 setLoading(false);
             }
