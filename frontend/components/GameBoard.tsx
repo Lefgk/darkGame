@@ -56,6 +56,17 @@ interface GameBoardProps {
   gameId: string;
 }
 
+// Animation types
+interface ActionAnimation {
+  type: 'attack' | 'loot' | 'move';
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  damage?: number;
+  lootAmount?: number;
+}
+
 export function GameBoard({ gameId }: GameBoardProps) {
   const { address } = useAccount();
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -64,6 +75,8 @@ export function GameBoard({ gameId }: GameBoardProps) {
   const [game, setGame] = useState<GameData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [animation, setAnimation] = useState<ActionAnimation | null>(null);
+  const [floatingText, setFloatingText] = useState<{ x: number; y: number; text: string; color: string } | null>(null);
 
   // Fetch game data from API
   const fetchGame = useCallback(async () => {
@@ -142,7 +155,12 @@ export function GameBoard({ gameId }: GameBoardProps) {
 
   // Handle action (move or attack)
   const performAction = async (action: 'move' | 'attack', targetX: number, targetY: number) => {
-    if (!address || isProcessing) return;
+    if (!address || isProcessing || !myShip) return;
+
+    const fromX = myShip.x;
+    const fromY = myShip.y;
+    const lootAtTarget = getLootAt(targetX, targetY);
+    const targetShip = getShipAt(targetX, targetY);
 
     setIsProcessing(true);
     try {
@@ -162,6 +180,26 @@ export function GameBoard({ gameId }: GameBoardProps) {
       if (!res.ok) {
         alert(data.error || 'Action failed');
       } else {
+        // Show animation based on action type
+        if (action === 'attack' && targetShip) {
+          // Attack animation
+          setAnimation({ type: 'attack', fromX, fromY, toX: targetX, toY: targetY });
+          setFloatingText({ x: targetX, y: targetY, text: 'HIT!', color: 'text-red-500' });
+        } else if (action === 'move' && lootAtTarget) {
+          // Loot pickup animation
+          setAnimation({ type: 'loot', fromX, fromY, toX: targetX, toY: targetY, lootAmount: lootAtTarget.amount });
+          setFloatingText({ x: targetX, y: targetY, text: `+${lootAtTarget.amount} HP`, color: 'text-green-500' });
+        } else if (action === 'move') {
+          // Move animation
+          setAnimation({ type: 'move', fromX, fromY, toX: targetX, toY: targetY });
+        }
+
+        // Clear animation after delay
+        setTimeout(() => {
+          setAnimation(null);
+          setFloatingText(null);
+        }, 800);
+
         setGame(data.game);
         setActionMode(null);
         setSelectedTile(null);
@@ -268,6 +306,30 @@ export function GameBoard({ gameId }: GameBoardProps) {
         {/* Loot */}
         {lootItem && !ship && (
           <span className="text-xl animate-bounce">+</span>
+        )}
+
+        {/* Attack animation - laser beam effect */}
+        {animation?.type === 'attack' && animation.toX === x && animation.toY === y && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center">
+            <div className="absolute inset-0 bg-red-500/50 animate-ping rounded" />
+            <span className="text-3xl animate-bounce">💥</span>
+          </div>
+        )}
+
+        {/* Loot pickup animation */}
+        {animation?.type === 'loot' && animation.toX === x && animation.toY === y && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center">
+            <div className="absolute inset-0 bg-green-500/30 animate-pulse rounded" />
+            <span className="text-2xl animate-bounce">✨</span>
+          </div>
+        )}
+
+        {/* Floating damage/heal text */}
+        {floatingText && floatingText.x === x && floatingText.y === y && (
+          <div className={`absolute -top-6 left-1/2 -translate-x-1/2 z-30 font-black text-lg ${floatingText.color} animate-bounce`}
+               style={{ animation: 'floatUp 0.8s ease-out forwards' }}>
+            {floatingText.text}
+          </div>
         )}
 
         {/* Coordinate label */}

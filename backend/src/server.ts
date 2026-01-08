@@ -384,6 +384,9 @@ function advanceTurn(game: Game) {
 function checkGameEnd(game: Game) {
   const alive = game.ships.filter(s => s.isAlive);
 
+  // Don't end if only 1 player total (solo testing mode)
+  if (game.ships.length === 1) return;
+
   if (alive.length <= 1) {
     game.state = 2;
 
