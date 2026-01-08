@@ -91,16 +91,17 @@ contract DarkArena is ReentrancyGuard {
     /// @param journeyId The journey ID of your FuelCell (for verification)
     function joinGame(uint256 gameId, uint256 tokenId, uint256 journeyId) external payable {
         Types.GameData storage game = games[gameId];
-        
-        // Verify FuelCell ownership
-        if (fuelCellNFT.balanceOf(msg.sender) == 0) revert NoFuelCellNFT();
-        if (fuelCellNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (usedTokenIds[gameId][tokenId]) revert InvalidTokenId(); // Can't use same NFT twice
-        
+
+        // NOTE: NFT verification disabled for testing
+        // Uncomment for production:
+        // if (fuelCellNFT.balanceOf(msg.sender) == 0) revert NoFuelCellNFT();
+        // if (fuelCellNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        // if (usedTokenIds[gameId][tokenId]) revert InvalidTokenId(); // Can't use same NFT twice
+
         if (game.state != Types.GameState.Lobby) revert GameNotInLobby();
         if (game.playerCount >= Constants.MAX_PLAYERS) revert GameFull();
         if (msg.value < Constants.ENTRY_FEE) revert InsufficientEntryFee();
-        if (playerShipIndex[gameId][msg.sender] != 0 || 
+        if (playerShipIndex[gameId][msg.sender] != 0 ||
             (gameShips[gameId].length > 0 && gameShips[gameId][0].player == msg.sender)) {
             revert AlreadyJoined();
         }
@@ -138,14 +139,15 @@ contract DarkArena is ReentrancyGuard {
     /// @notice Start the game (can be called by anyone after min players reached)
     function startGame(uint256 gameId) external {
         Types.GameData storage game = games[gameId];
-        
+
         if (game.state != Types.GameState.Lobby) revert GameNotInLobby();
         if (game.playerCount < Constants.MIN_PLAYERS) revert UnauthorizedCaller();
-        
-        // Check if lobby time expired
-        if (block.timestamp < game.startTime + (Constants.LOBBY_TIME_LIMIT * 10)) {
-            revert UnauthorizedCaller();
-        }
+
+        // NOTE: Lobby timeout check disabled for testing - anyone can start once min players reached
+        // Uncomment for production:
+        // if (block.timestamp < game.startTime + (Constants.LOBBY_TIME_LIMIT * 10)) {
+        //     revert UnauthorizedCaller();
+        // }
 
         _startGame(gameId);
     }

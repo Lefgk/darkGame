@@ -11,8 +11,8 @@ library Constants {
     /// @notice Zone shrinks every 10 turns
     uint8 internal constant ZONE_SHRINK_INTERVAL = 10;
 
-    /// @notice Minimum players
-    uint8 internal constant MIN_PLAYERS = 5;
+    /// @notice Minimum players (1 for testing, change to 5 for production)
+    uint8 internal constant MIN_PLAYERS = 1;
 
     /// @notice Maximum players
     uint8 internal constant MAX_PLAYERS = 16;

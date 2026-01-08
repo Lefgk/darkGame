@@ -106,10 +106,10 @@ export default function Home() {
             {/* Live Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-12 max-w-4xl mx-auto">
               {[
-                { value: '24', label: 'Active Games', color: 'purple' },
-                { value: '1.2K', label: 'Total Players', color: 'pink' },
-                { value: '50K', label: 'DARK Prizes', color: 'purple' },
-                { value: '856', label: 'Games Played', color: 'pink' },
+                { value: '--', label: 'Active Games', color: 'purple' },
+                { value: '--', label: 'Total Players', color: 'pink' },
+                { value: '--', label: 'PLS Prizes', color: 'purple' },
+                { value: '--', label: 'Games Played', color: 'pink' },
               ].map((stat, i) => (
                 <div
                   key={i}

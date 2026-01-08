@@ -56,3 +56,5 @@ lerna-debug.log*
 .turbo/
 *.pem
 *.key
+/contracts
+/contracts
