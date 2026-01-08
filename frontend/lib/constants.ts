@@ -1,7 +1,7 @@
 /**
  * API URL for game server
  */
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dark-arena-backend-production.up.railway.app';
 
 /**
  * Contract addresses for Dark Arena on PulseChain
