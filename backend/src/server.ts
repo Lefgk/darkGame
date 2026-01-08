@@ -9,7 +9,7 @@ app.use(express.json());
 // Config
 const PORT = process.env.PORT || 3001;
 const GRID_SIZE = 8;
-const TURN_DURATION = 30; // seconds
+const TURN_DURATION = 15; // seconds
 
 // Ship classes based on journey
 const SHIP_CLASSES = {
