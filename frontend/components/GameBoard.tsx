@@ -330,10 +330,31 @@ export function GameBoard({ gameId }: GameBoardProps) {
         {isLobby && (
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-8 mb-6 text-center">
             <h2 className="text-2xl font-bold text-yellow-400 mb-2">Waiting for Players</h2>
-            <p className="text-gray-300">
+            <p className="text-gray-300 mb-4">
               {game.playerCount} / 16 players joined.
               {game.playerCount >= 1 && ' Game can be started!'}
             </p>
+            {game.playerCount >= 1 && (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`${API_URL}/game/${gameId}/start`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setGame(data.game);
+                    }
+                  } catch (e) {
+                    console.error('Failed to start:', e);
+                  }
+                }}
+                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 px-8 rounded-xl text-xl shadow-lg hover:scale-105 transition-all"
+              >
+                START GAME
+              </button>
+            )}
           </div>
         )}
 
