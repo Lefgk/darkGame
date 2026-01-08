@@ -1,20 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatEther } from 'viem';
+import { useAccount } from 'wagmi';
 import { NFTShipSelector } from './NFTShipSelector';
-import { ADDRESSES } from '@/lib/constants';
-import { DARK_ARENA_ABI } from '@/lib/abis';
+import { API_URL } from '@/lib/constants';
 
 interface GameData {
-    gameId: bigint;
+    gameId: number;
     state: number;
     turn: number;
     zoneSize: number;
-    prizePool: bigint;
-    startTime: bigint;
+    prizePool: string;
+    startTime: number;
     playerCount: number;
     playersAlive: number;
     winner: string;
@@ -29,88 +27,38 @@ export function ActiveGames() {
     const { address, isConnected } = useAccount();
     const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
     const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(null);
-    const [activeGames, setActiveGames] = useState<GameData[]>([]);
+    const [games, setGames] = useState<GameData[]>([]);
+    const [totalGames, setTotalGames] = useState(0);
     const [mounted, setMounted] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    // Get total game count
-    const { data: gameCounter, refetch: refetchCounter } = useReadContract({
-        address: ADDRESSES.DARK_ARENA as `0x${string}`,
-        abi: DARK_ARENA_ABI,
-        functionName: 'gameCounter',
-        query: { enabled: mounted },
-    });
+    // Fetch games from API
+    const fetchGames = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_URL}/games`);
+            if (!res.ok) throw new Error('Failed to fetch games');
+            const data = await res.json();
+            setGames(data.games || []);
+            setTotalGames(data.total || 0);
+            setError(null);
+        } catch (e) {
+            console.error('Error fetching games:', e);
+            setError('Failed to connect to game server');
+        }
+    }, []);
 
-    // Write contract hooks
-    const { writeContract: createGameWrite, data: createGameHash, isPending: isCreating } = useWriteContract();
-    const { writeContract: joinGameWrite, data: joinGameHash, isPending: isJoining } = useWriteContract();
-    const { writeContract: startGameWrite, data: startGameHash, isPending: isStarting } = useWriteContract();
-
-    // Wait for transaction receipts
-    const { isLoading: isCreateConfirming, isSuccess: isCreateSuccess, data: createReceipt } = useWaitForTransactionReceipt({ hash: createGameHash });
-    const { isLoading: isJoinConfirming, isSuccess: isJoinSuccess } = useWaitForTransactionReceipt({ hash: joinGameHash });
-    const { isLoading: isStartConfirming, isSuccess: isStartSuccess } = useWaitForTransactionReceipt({ hash: startGameHash });
-
-    // Fetch all games when counter changes
+    // Poll for games
     useEffect(() => {
-        if (!mounted || !gameCounter) return;
-
-        const fetchGames = async () => {
-            const count = Number(gameCounter);
-            const games: GameData[] = [];
-
-            for (let i = 1; i <= count; i++) {
-                try {
-                    const res = await fetch('https://rpc.pulsechain.com', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0',
-                            id: i,
-                            method: 'eth_call',
-                            params: [{
-                                to: ADDRESSES.DARK_ARENA,
-                                data: `0x게e12c02${i.toString(16).padStart(64, '0')}` // getGame(uint256)
-                            }, 'latest']
-                        })
-                    });
-                    // Simplified - just use the API response
-                } catch (e) {
-                    console.error('Error fetching game', i, e);
-                }
-            }
-
-            // For now, fetch via direct RPC since we need tuple decoding
-            // Let's use a simpler approach - just show games from events
-        };
-
+        if (!mounted) return;
         fetchGames();
-    }, [gameCounter, mounted]);
-
-    // Navigate to game after successful create
-    useEffect(() => {
-        if (isCreateSuccess && createReceipt) {
-            // Parse GameCreated event to get gameId
-            const gameCreatedLog = createReceipt.logs.find(log =>
-                log.topics[0] === '0x8c25e214c5693ebaf8008875bacedeb9e0aafd393864a0de36f0f4e5bece5484' // GameCreated topic
-            );
-            if (gameCreatedLog && gameCreatedLog.topics[1]) {
-                const gameId = parseInt(gameCreatedLog.topics[1], 16);
-                router.push(`/game/${gameId}`);
-            }
-            refetchCounter();
-        }
-    }, [isCreateSuccess, createReceipt, router, refetchCounter]);
-
-    // Refetch after join/start success
-    useEffect(() => {
-        if (isJoinSuccess || isStartSuccess) {
-            refetchCounter();
-        }
-    }, [isJoinSuccess, isStartSuccess, refetchCounter]);
+        const interval = setInterval(fetchGames, 3000);
+        return () => clearInterval(interval);
+    }, [mounted, fetchGames]);
 
     const handleSelectNFT = (tokenId: number, journeyId: number) => {
         setSelectedTokenId(tokenId);
@@ -118,24 +66,35 @@ export function ActiveGames() {
     };
 
     const handleCreateGame = async () => {
-        if (!isConnected) {
+        if (!isConnected || !address) {
             alert('Please connect your wallet first!');
             return;
         }
 
+        setIsProcessing(true);
         try {
-            createGameWrite({
-                address: ADDRESSES.DARK_ARENA as `0x${string}`,
-                abi: DARK_ARENA_ABI,
-                functionName: 'createGame',
+            const res = await fetch(`${API_URL}/game/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
             });
-        } catch (error) {
-            console.error('Failed to create game:', error);
+
+            if (!res.ok) throw new Error('Failed to create game');
+            const data = await res.json();
+
+            if (data.success) {
+                // Auto-join the game we just created
+                await handleJoinGame(data.gameId);
+            }
+        } catch (e) {
+            console.error('Failed to create game:', e);
+            alert('Failed to create game. Is the server running?');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
     const handleJoinGame = async (gameId: number) => {
-        if (!isConnected) {
+        if (!isConnected || !address) {
             alert('Please connect your wallet first!');
             return;
         }
@@ -143,16 +102,33 @@ export function ActiveGames() {
         const tokenId = selectedTokenId || 1;
         const journeyId = selectedJourneyId || 1;
 
+        setIsProcessing(true);
         try {
-            joinGameWrite({
-                address: ADDRESSES.DARK_ARENA as `0x${string}`,
-                abi: DARK_ARENA_ABI,
-                functionName: 'joinGame',
-                args: [BigInt(gameId), BigInt(tokenId), BigInt(journeyId)],
-                value: BigInt(0), // Free for testing
+            const res = await fetch(`${API_URL}/game/${gameId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    player: address,
+                    tokenId,
+                    journeyId,
+                }),
             });
-        } catch (error) {
-            console.error('Failed to join game:', error);
+
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Failed to join game');
+                return;
+            }
+
+            if (data.success) {
+                fetchGames();
+                router.push(`/game/${gameId}`);
+            }
+        } catch (e) {
+            console.error('Failed to join game:', e);
+            alert('Failed to join game');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -162,31 +138,54 @@ export function ActiveGames() {
             return;
         }
 
+        setIsProcessing(true);
         try {
-            startGameWrite({
-                address: ADDRESSES.DARK_ARENA as `0x${string}`,
-                abi: DARK_ARENA_ABI,
-                functionName: 'startGame',
-                args: [BigInt(gameId)],
+            const res = await fetch(`${API_URL}/game/${gameId}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
             });
-        } catch (error) {
-            console.error('Failed to start game:', error);
+
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Failed to start game');
+                return;
+            }
+
+            if (data.success) {
+                fetchGames();
+                router.push(`/game/${gameId}`);
+            }
+        } catch (e) {
+            console.error('Failed to start game:', e);
+            alert('Failed to start game');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const isProcessing = isCreating || isCreateConfirming || isJoining || isJoinConfirming || isStarting || isStartConfirming;
+    if (!mounted) {
+        return <div className="text-center py-12 text-gray-400">Loading...</div>;
+    }
 
     return (
         <div className="space-y-8">
             {/* NFT Ship Selector */}
             <NFTShipSelector onSelectNFT={handleSelectNFT} />
 
+            {/* Server Status */}
+            {error && (
+                <div className="bg-red-500/20 rounded-lg p-4 border border-red-500/50 text-center">
+                    <p className="text-red-400">{error}</p>
+                    <p className="text-sm text-gray-400 mt-1">Make sure the backend is running: cd backend && npm run dev</p>
+                </div>
+            )}
+
             {/* Create New Game */}
             <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-xl p-8 backdrop-blur-sm border-2 border-purple-500">
                 <div className="text-center">
                     <h3 className="text-3xl font-bold mb-4 text-white">Start a New Arena</h3>
                     <p className="text-gray-300 mb-6">
-                        Create a new battle arena. Entry fee: <span className="font-bold text-green-400">FREE (Testing Mode)</span>
+                        Create a new battle arena. <span className="font-bold text-green-400">Instant gameplay - no blockchain wait!</span>
                         <br />
                         <span className="text-yellow-400">Game can start with just 1 player for testing!</span>
                     </p>
@@ -199,7 +198,7 @@ export function ActiveGames() {
                                 : 'bg-gray-600 cursor-not-allowed opacity-50'
                         }`}
                     >
-                        {isCreating || isCreateConfirming ? '⏳ Creating...' : '🎮 Create Game'}
+                        {isProcessing ? 'Creating...' : 'Create Game'}
                     </button>
                     {!isConnected && (
                         <p className="text-yellow-400 text-sm mt-2">Connect wallet to create a game</p>
@@ -210,20 +209,19 @@ export function ActiveGames() {
             {/* Game Counter Display */}
             <div className="bg-gray-800/50 rounded-xl p-8 backdrop-blur-sm border border-purple-500/20">
                 <h3 className="text-2xl font-bold mb-6 text-purple-400">
-                    Games Created: {gameCounter !== undefined ? Number(gameCounter) : '--'}
+                    Games Created: {totalGames}
                 </h3>
 
-                {gameCounter !== undefined && Number(gameCounter) > 0 ? (
+                {games.length > 0 ? (
                     <div className="space-y-4">
-                        {Array.from({ length: Math.min(Number(gameCounter), 10) }, (_, i) => Number(gameCounter) - i).map((gameId) => (
+                        {games.slice().reverse().slice(0, 10).map((game) => (
                             <GameCard
-                                key={gameId}
-                                gameId={gameId}
+                                key={game.gameId}
+                                game={game}
                                 onJoin={handleJoinGame}
                                 onStart={handleStartGame}
                                 onWatch={(id) => router.push(`/game/${id}`)}
                                 isProcessing={isProcessing}
-                                selectedTokenId={selectedTokenId}
                             />
                         ))}
                     </div>
@@ -237,53 +235,33 @@ export function ActiveGames() {
 
             {/* Instructions */}
             <div className="bg-blue-900/20 rounded-lg p-6 border border-blue-500/30">
-                <h4 className="text-lg font-bold text-blue-400 mb-2">💡 How to Play (Testing Mode)</h4>
+                <h4 className="text-lg font-bold text-blue-400 mb-2">How to Play</h4>
                 <ol className="text-gray-300 text-sm space-y-1 list-decimal list-inside">
                     <li>Connect your wallet</li>
-                    <li>Create a new game (no NFT required for testing)</li>
-                    <li>Join the game you created</li>
-                    <li>Click &quot;Start Game&quot; to begin (1 player minimum for testing)</li>
-                    <li>Battle on the 8x8 grid!</li>
+                    <li>Create a new game</li>
+                    <li>Click Start Game to begin</li>
+                    <li>Move and attack on the 8x8 grid!</li>
+                    <li>Last ship standing wins!</li>
                 </ol>
             </div>
         </div>
     );
 }
 
-// Separate component to fetch individual game data
+// Game Card Component
 function GameCard({
-    gameId,
+    game,
     onJoin,
     onStart,
     onWatch,
     isProcessing,
-    selectedTokenId
 }: {
-    gameId: number;
+    game: GameData;
     onJoin: (id: number) => void;
     onStart: (id: number) => void;
     onWatch: (id: number) => void;
     isProcessing: boolean;
-    selectedTokenId: number | null;
 }) {
-    const { data: gameData } = useReadContract({
-        address: ADDRESSES.DARK_ARENA as `0x${string}`,
-        abi: DARK_ARENA_ABI,
-        functionName: 'getGame',
-        args: [BigInt(gameId)],
-    });
-
-    if (!gameData) {
-        return (
-            <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-700 animate-pulse">
-                <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
-                <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-            </div>
-        );
-    }
-
-    const game = gameData as GameData;
-    const state = GAME_STATES[game.state] || 'Unknown';
     const isLobby = game.state === 0;
     const isActive = game.state === 1;
     const isFinished = game.state === 2;
@@ -293,13 +271,13 @@ function GameCard({
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-3">
-                        <span className="text-2xl font-bold text-white">Game #{gameId}</span>
+                        <span className="text-2xl font-bold text-white">Game #{game.gameId}</span>
                         <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             isLobby ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' :
                             isActive ? 'bg-green-500/20 text-green-400 border border-green-500/50' :
                             'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                         }`}>
-                            {isLobby ? '⏳ Lobby' : isActive ? '⚔️ Active' : '🏁 Finished'}
+                            {isLobby ? 'Lobby' : isActive ? 'Active' : 'Finished'}
                         </span>
                     </div>
 
@@ -307,12 +285,6 @@ function GameCard({
                         <div>
                             <div className="text-gray-400">Players</div>
                             <div className="text-white font-semibold text-lg">{game.playerCount}/16</div>
-                        </div>
-                        <div>
-                            <div className="text-gray-400">Prize Pool</div>
-                            <div className="text-purple-400 font-semibold text-lg">
-                                {formatEther(game.prizePool)} PLS
-                            </div>
                         </div>
                         {isActive && (
                             <>
@@ -323,6 +295,10 @@ function GameCard({
                                 <div>
                                     <div className="text-gray-400">Alive</div>
                                     <div className="text-green-400 font-semibold text-lg">{game.playersAlive}</div>
+                                </div>
+                                <div>
+                                    <div className="text-gray-400">Zone</div>
+                                    <div className="text-orange-400 font-semibold text-lg">{game.zoneSize}x{game.zoneSize}</div>
                                 </div>
                             </>
                         )}
@@ -341,7 +317,7 @@ function GameCard({
                     {isLobby && (
                         <>
                             <button
-                                onClick={() => onJoin(gameId)}
+                                onClick={() => onJoin(game.gameId)}
                                 disabled={isProcessing}
                                 className={`font-bold py-3 px-6 rounded-lg transition-all ${
                                     !isProcessing
@@ -349,11 +325,11 @@ function GameCard({
                                         : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
                                 }`}
                             >
-                                ⚔️ Join
+                                Join
                             </button>
                             {game.playerCount >= 1 && (
                                 <button
-                                    onClick={() => onStart(gameId)}
+                                    onClick={() => onStart(game.gameId)}
                                     disabled={isProcessing}
                                     className={`font-bold py-3 px-6 rounded-lg transition-all ${
                                         !isProcessing
@@ -361,17 +337,17 @@ function GameCard({
                                             : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
                                     }`}
                                 >
-                                    🚀 Start
+                                    Start
                                 </button>
                             )}
                         </>
                     )}
                     {(isActive || isFinished) && (
                         <button
-                            onClick={() => onWatch(gameId)}
+                            onClick={() => onWatch(game.gameId)}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
                         >
-                            👁️ View
+                            View
                         </button>
                     )}
                 </div>
