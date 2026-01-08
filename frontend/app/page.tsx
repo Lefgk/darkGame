@@ -81,6 +81,8 @@ export default function Home() {
               <span className="text-purple-400 font-bold">Fight.</span>{' '}
               <span className="text-pink-400 font-bold">Survive.</span>{' '}
               <span className="text-purple-400 font-bold">Dominate.</span>
+              <br />
+              <span className="text-green-400 font-bold text-lg">⚡ FREE TO PLAY (TESTING)</span>
             </p>
 
             {/* CTA Buttons */}

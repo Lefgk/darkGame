@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { NFTShipSelector } from './NFTShipSelector';
 
 // Mock data for active games
@@ -34,6 +35,7 @@ const mockActiveGames = [
 ];
 
 export function ActiveGames() {
+    const router = useRouter();
     const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
     const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(null);
     const [isCreatingGame, setIsCreatingGame] = useState(false);
@@ -54,12 +56,12 @@ export function ActiveGames() {
         try {
             // TODO: Call DarkArena.createGame() contract function
             console.log('Creating game with NFT', selectedTokenId, 'Journey', selectedJourneyId);
-            // Reset after creation
-            setSelectedTokenId(null);
-            setSelectedJourneyId(null);
+
+            // For now, create a mock game ID and navigate
+            const mockGameId = Date.now();
+            router.push(`/game/${mockGameId}`);
         } catch (error) {
             console.error('Failed to create game:', error);
-        } finally {
             setIsCreatingGame(false);
         }
     };
@@ -74,11 +76,11 @@ export function ActiveGames() {
         try {
             // TODO: Call DarkArena.joinGame(gameId, tokenId, journeyId)
             console.log('Joining game', gameId, 'with NFT', selectedTokenId, 'Journey', selectedJourneyId);
-            setSelectedTokenId(null);
-            setSelectedJourneyId(null);
+
+            // Navigate to game board
+            router.push(`/game/${gameId}`);
         } catch (error) {
             console.error('Failed to join game:', error);
-        } finally {
             setJoiningGameId(null);
         }
     };
@@ -93,7 +95,7 @@ export function ActiveGames() {
                 <div className="text-center">
                     <h3 className="text-3xl font-bold mb-4 text-white">Start a New Arena</h3>
                     <p className="text-gray-300 mb-6">
-                        Create a new battle arena. Entry fee: <span className="font-bold text-purple-400">50 DARK</span>
+                        Create a new battle arena. Entry fee: <span className="font-bold text-green-400">FREE (Testing Mode)</span>
                         <br />
                         Game starts when 5-16 players join.
                     </p>
@@ -101,8 +103,8 @@ export function ActiveGames() {
                         onClick={handleCreateGame}
                         disabled={!selectedTokenId || isCreatingGame}
                         className={`text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg transition-all ${selectedTokenId && !isCreatingGame
-                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/50 hover:scale-105 cursor-pointer'
-                                : 'bg-gray-600 cursor-not-allowed opacity-50'
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/50 hover:scale-105 cursor-pointer'
+                            : 'bg-gray-600 cursor-not-allowed opacity-50'
                             }`}
                     >
                         {isCreatingGame ? '⏳ Creating...' : selectedTokenId ? '🎮 Create Game' : '❌ Select NFT First'}
@@ -133,8 +135,8 @@ export function ActiveGames() {
                                             <span className="text-2xl font-bold text-white">Game #{game.id}</span>
                                             <span
                                                 className={`px-3 py-1 rounded-full text-sm font-semibold ${game.state === 'WAITING'
-                                                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                                                        : 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                                                    : 'bg-green-500/20 text-green-400 border border-green-500/50'
                                                     }`}
                                             >
                                                 {game.state === 'WAITING' ? '⏳ Lobby' : '⚔️ In Progress'}
@@ -178,8 +180,8 @@ export function ActiveGames() {
                                                 onClick={() => handleJoinGame(game.id)}
                                                 disabled={!selectedTokenId || joiningGameId === game.id}
                                                 className={`font-bold py-3 px-6 rounded-lg transition-all whitespace-nowrap ${selectedTokenId && joiningGameId !== game.id
-                                                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg shadow-green-500/30 hover:scale-105 cursor-pointer'
-                                                        : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
+                                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg shadow-green-500/30 hover:scale-105 cursor-pointer'
+                                                    : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
                                                     }`}
                                             >
                                                 {joiningGameId === game.id
@@ -191,10 +193,7 @@ export function ActiveGames() {
                                         ) : (
                                             <button
                                                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
-                                                onClick={() => {
-                                                    // TODO: Navigate to game view
-                                                    console.log('Viewing game', game.id);
-                                                }}
+                                                onClick={() => router.push(`/game/${game.id}`)}
                                             >
                                                 👁️ Watch
                                             </button>

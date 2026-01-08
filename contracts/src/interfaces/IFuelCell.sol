@@ -29,9 +29,8 @@ interface IFuelCell {
     /// @return approved Whether the operator is approved
     function isApprovedForAll(address owner, address operator) external view returns (bool approved);
 
-    /// @notice Get the journey ID for a token (determines rarity/ship class)
-    /// @param tokenId The token ID to query
-    /// @return journeyId The journey this token was minted in
+    /// @notice Get the journey phase manager contract address
+    /// @return The address of the journey phase manager
     function journeyPhaseManager() external view returns (address);
     
     /// @notice Get token of owner by index

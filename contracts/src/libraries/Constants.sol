@@ -17,11 +17,11 @@ library Constants {
     /// @notice Maximum players
     uint8 internal constant MAX_PLAYERS = 16;
 
-    /// @notice Entry fee in PLS (50 PLS)
-    uint256 internal constant ENTRY_FEE = 50 ether;
+    /// @notice Entry fee in PLS (0 for testing, change to 50 ether for production)
+    uint256 internal constant ENTRY_FEE = 0 ether;
 
-    /// @notice Bounty per kill (25 PLS)
-    uint256 internal constant KILL_BOUNTY = 25 ether;
+    /// @notice Bounty per kill (0 for testing, change to 25 ether for production)
+    uint256 internal constant KILL_BOUNTY = 0 ether;
 
     /// @notice Prize percentages (basis points)
     uint16 internal constant FIRST_PLACE_BPS = 5400;  // 54%

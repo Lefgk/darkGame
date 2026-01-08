@@ -57,9 +57,9 @@ contract DarkArena is ReentrancyGuard {
     mapping(uint256 => uint256) public gameSeed;
 
     /// ========== CONSTRUCTOR ========== ///
-    constructor(address _treasury) {
+    constructor(address _treasury, address _fuelCellNFT) {
         treasury = _treasury;
-        fuelCellNFT = IFuelCell(Addresses.FUELCELL_NFT);
+        fuelCellNFT = IFuelCell(_fuelCellNFT);
     }
 
     /// ========== GAME CREATION ========== ///
