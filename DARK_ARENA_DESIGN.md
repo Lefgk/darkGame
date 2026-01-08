@@ -32,7 +32,67 @@ Dark Arena is a turn-based battle royale game where players pilot their FuelCell
 
 ## The Grid
 
-8x8 space sector (64 tiles). Each tile can contain:
+8x8 space sector (64 tiles).
+
+### Board Visual (Example Mid-Game)
+
+```
+    A     B     C     D     E     F     G     H
+  ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
+1 │ ░░░ │     │  †  │     │ $$$ │     │ ░░░ │ ░░░ │
+  │STORM│     │WRECK│     │ PLS │     │STORM│STORM│
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+2 │ ░░░ │ <X> │     │  ⚔  │     │     │ >o< │ ░░░ │
+  │STORM│ YOU │     │WEAPN│     │     │ENEMY│STORM│
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+3 │     │     │ ### │     │  †  │     │     │ ░░░ │
+  │     │     │NEBUL│     │WRECK│     │     │STORM│
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+4 │     │  ⛨  │     │     │     │ <P> │     │     │
+  │     │ARMOR│     │     │     │ FOE │     │     │
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+5 │     │     │     │ >O< │     │     │  †  │     │
+  │     │     │     │BOSS │     │     │WRECK│     │
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+6 │ ░░░ │     │ *** │     │     │ ### │     │     │
+  │STORM│     │DARK │     │     │NEBUL│     │     │
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+7 │ ░░░ │ <P> │     │     │ $$$ │     │     │ ░░░ │
+  │STORM│ FOE │     │     │ PLS │     │     │STORM│
+  ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+8 │ ░░░ │ ░░░ │  !  │     │     │  †  │ ░░░ │ ░░░ │
+  │STORM│STORM│TRAP │     │     │WRECK│STORM│STORM│
+  └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+
+  LEGEND:
+  ┌──────────────────────────────────────────────┐
+  │  <X>  = Your Ship       <P>  = Enemy Player  │
+  │  >o<  = Scout Drone     >O<  = Battlecruiser │
+  │  ░░░  = Storm Zone       †   = Debris (loot) │
+  │  ###  = Nebula (hide)    !   = Hidden Trap   │
+  │  ⚔   = Weapon Drop      ⛨   = Armor Drop    │
+  │  $$$  = PLS Cache       ***  = DARK Stash    │
+  └──────────────────────────────────────────────┘
+```
+
+### Zone Shrinking Visual
+
+```
+TURN 1-10           TURN 11-20          TURN 21-30          TURN 31+
+Full Board          Outer Ring Storm    2 Rings Storm       Center Only
+
+┌────────────┐      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░
+│            │      ░┌────────┐░░░      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░
+│            │      ░│        │░░░      ░░┌──────┐░░░░      ░░░░┌────┐░░░░
+│   SAFE     │      ░│  SAFE  │░░░      ░░│ SAFE │░░░░      ░░░░│SAFE│░░░░
+│   ZONE     │  →   ░│  ZONE  │░░░  →   ░░│ ZONE │░░░░  →   ░░░░│ZONE│░░░░
+│            │      ░│        │░░░      ░░└──────┘░░░░      ░░░░└────┘░░░░
+│            │      ░└────────┘░░░      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░
+└────────────┘      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░      ░░░░░░░░░░░░░░
+   8x8                  6x6                 4x4                 2x2
+```
+
+### Each tile can contain:
 
 | Tile | Description |
 |------|-------------|
