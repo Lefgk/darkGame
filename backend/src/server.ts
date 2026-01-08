@@ -259,10 +259,10 @@ app.post('/game/:gameId/start', (req, res) => {
   res.json({ success: true, game: serializeGame(game) });
 });
 
-// Perform action (move or attack)
+// Perform action (auto-detect: enemy = attack, empty = move)
 app.post('/game/:gameId/action', (req, res) => {
   const gameId = parseInt(req.params.gameId);
-  const { player, action, targetX, targetY, signature, nonce } = req.body;
+  const { player, targetX, targetY, signature, nonce } = req.body;
 
   const game = games.get(gameId);
   if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -273,25 +273,55 @@ app.post('/game/:gameId/action', (req, res) => {
   if (!ship.isAlive) return res.status(400).json({ error: 'Ship destroyed' });
   if (ship.hasActed) return res.status(400).json({ error: 'Already acted this turn' });
 
-  // Verify signature (skip for testing if no signature provided)
-  if (signature && !verifySignature(gameId, player, action, targetX, targetY, nonce, signature)) {
-    return res.status(400).json({ error: 'Invalid signature' });
+  // Bounds check
+  if (targetX < 0 || targetX >= GRID_SIZE || targetY < 0 || targetY >= GRID_SIZE) {
+    return res.status(400).json({ error: 'Out of bounds' });
   }
 
   const stats = SHIP_CLASSES[ship.shipClass as keyof typeof SHIP_CLASSES];
+  const dist = distance(ship.x, ship.y, targetX, targetY);
 
-  if (action === 'move') {
-    // Validate move distance
-    const dist = distance(ship.x, ship.y, targetX, targetY);
+  // Check if there's an enemy at target position
+  const target = game.ships.find(s => s.isAlive && s.x === targetX && s.y === targetY && s.player !== player);
+
+  if (target) {
+    // ATTACK - enemy at target tile
+    if (dist > stats.range) {
+      return res.status(400).json({ error: `Target out of range (max ${stats.range})` });
+    }
+
+    // Calculate damage with some randomness
+    const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
+    target.currentHP -= damage;
+    ship.damageDealt += damage;
+    ship.hasActed = true;
+
+    const targetName = target.isNPC ? target.npcName : target.player.slice(0, 6) + '...';
+    game.actionLog.push(`${player.slice(0, 6)}... attacked ${targetName} for ${damage} damage`);
+
+    if (target.currentHP <= 0) {
+      target.currentHP = 0;
+      target.isAlive = false;
+      ship.kills++;
+      game.actionLog.push(`${targetName} was destroyed!`);
+
+      // Drop loot on death
+      game.loot.push({
+        x: target.x,
+        y: target.y,
+        amount: 25,
+        collected: false,
+      });
+
+      // Check for game end
+      checkGameEnd(game);
+    }
+
+    res.json({ success: true, action: 'attack', damage, game: serializeGame(game) });
+  } else {
+    // MOVE - empty tile
     if (dist > stats.speed) {
       return res.status(400).json({ error: `Can only move ${stats.speed} tiles` });
-    }
-    if (targetX < 0 || targetX >= GRID_SIZE || targetY < 0 || targetY >= GRID_SIZE) {
-      return res.status(400).json({ error: 'Out of bounds' });
-    }
-    // Check if tile is occupied
-    if (game.ships.some(s => s.isAlive && s.x === targetX && s.y === targetY && s.player !== player)) {
-      return res.status(400).json({ error: 'Tile occupied' });
     }
 
     ship.x = targetX;
@@ -307,49 +337,8 @@ app.post('/game/:gameId/action', (req, res) => {
     }
 
     game.actionLog.push(`${player.slice(0, 6)}... moved to (${targetX}, ${targetY})`);
-  } else if (action === 'attack') {
-    // Find target at position
-    const target = game.ships.find(s => s.isAlive && s.x === targetX && s.y === targetY && s.player !== player);
-    if (!target) {
-      return res.status(400).json({ error: 'No target at position' });
-    }
-
-    // Validate attack range
-    const dist = distance(ship.x, ship.y, targetX, targetY);
-    if (dist > stats.range) {
-      return res.status(400).json({ error: `Target out of range (max ${stats.range})` });
-    }
-
-    // Calculate damage with some randomness
-    const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
-    target.currentHP -= damage;
-    ship.damageDealt += damage;
-    ship.hasActed = true;
-
-    game.actionLog.push(`${player.slice(0, 6)}... attacked ${target.player.slice(0, 6)}... for ${damage} damage`);
-
-    if (target.currentHP <= 0) {
-      target.currentHP = 0;
-      target.isAlive = false;
-      ship.kills++;
-      game.actionLog.push(`${target.player.slice(0, 6)}... was destroyed!`);
-
-      // Drop loot on death
-      game.loot.push({
-        x: target.x,
-        y: target.y,
-        amount: 25,
-        collected: false,
-      });
-
-      // Check for game end
-      checkGameEnd(game);
-    }
-  } else {
-    return res.status(400).json({ error: 'Invalid action' });
+    res.json({ success: true, action: 'move', game: serializeGame(game) });
   }
-
-  res.json({ success: true, game: serializeGame(game) });
 });
 
 // End turn (for testing - auto advances turn)

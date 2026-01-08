@@ -72,7 +72,6 @@ interface ActionAnimation {
 export function GameBoard({ gameId }: GameBoardProps) {
   const { address } = useAccount();
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
-  const [actionMode, setActionMode] = useState<'move' | 'attack' | null>(null);
   const [turnTimer, setTurnTimer] = useState<number>(30);
   const [game, setGame] = useState<GameData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -128,21 +127,23 @@ export function GameBoard({ gameId }: GameBoardProps) {
     return x >= zoneMin && x <= zoneMax && y >= zoneMin && y <= zoneMax;
   };
 
-  // Check if tile is valid move for current player
+  // Check if tile is valid move for current player (empty tile within speed)
   const isValidMove = (x: number, y: number) => {
-    if (!myShip || !actionMode || actionMode !== 'move') return false;
-    const distance = Math.max(Math.abs(x - myShip.x), Math.abs(y - myShip.y));
+    if (!myShip || myShip.hasActed) return false;
+    const dist = Math.max(Math.abs(x - myShip.x), Math.abs(y - myShip.y));
     const stats = SHIP_CLASS_INFO[myShip.shipClass].stats;
-    return distance > 0 && distance <= stats.speed && !allShips.some(s => s.x === x && s.y === y && s.isAlive);
+    // Valid move: within speed range, not occupied by any alive ship
+    return dist > 0 && dist <= stats.speed && !allShips.some(s => s.x === x && s.y === y && s.isAlive);
   };
 
-  // Check if tile is valid attack target
+  // Check if tile is valid attack target (enemy within range)
   const isValidAttack = (x: number, y: number) => {
-    if (!myShip || !actionMode || actionMode !== 'attack') return false;
-    const distance = Math.max(Math.abs(x - myShip.x), Math.abs(y - myShip.y));
+    if (!myShip || myShip.hasActed) return false;
+    const dist = Math.max(Math.abs(x - myShip.x), Math.abs(y - myShip.y));
     const stats = SHIP_CLASS_INFO[myShip.shipClass].stats;
     const targetShip = allShips.find(s => s.x === x && s.y === y && s.isAlive && s.player !== myShip.player);
-    return distance <= stats.range && targetShip !== undefined;
+    // Valid attack: enemy exists at tile and within attack range
+    return targetShip !== undefined && dist <= stats.range;
   };
 
   // Get ship at position
@@ -155,14 +156,15 @@ export function GameBoard({ gameId }: GameBoardProps) {
     return allLoot.find(l => l.x === x && l.y === y);
   };
 
-  // Handle action (move or attack)
-  const performAction = async (action: 'move' | 'attack', targetX: number, targetY: number) => {
+  // Handle action (server auto-detects move vs attack)
+  const performAction = async (targetX: number, targetY: number) => {
     if (!address || isProcessing || !myShip) return;
 
     const fromX = myShip.x;
     const fromY = myShip.y;
     const lootAtTarget = getLootAt(targetX, targetY);
     const targetShip = getShipAt(targetX, targetY);
+    const isAttack = targetShip && targetShip.isAlive;
 
     setIsProcessing(true);
     try {
@@ -171,10 +173,8 @@ export function GameBoard({ gameId }: GameBoardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player: address,
-          action,
           targetX,
           targetY,
-          nonce: Date.now(),
         }),
       });
 
@@ -182,17 +182,14 @@ export function GameBoard({ gameId }: GameBoardProps) {
       if (!res.ok) {
         alert(data.error || 'Action failed');
       } else {
-        // Show animation based on action type
-        if (action === 'attack' && targetShip) {
-          // Attack animation
-          setAnimation({ type: 'attack', fromX, fromY, toX: targetX, toY: targetY });
-          setFloatingText({ x: targetX, y: targetY, text: 'HIT!', color: 'text-red-500' });
-        } else if (action === 'move' && lootAtTarget) {
-          // Loot pickup animation
+        // Show animation based on what happened
+        if (data.action === 'attack') {
+          setAnimation({ type: 'attack', fromX, fromY, toX: targetX, toY: targetY, damage: data.damage });
+          setFloatingText({ x: targetX, y: targetY, text: `-${data.damage}`, color: 'text-red-500' });
+        } else if (lootAtTarget) {
           setAnimation({ type: 'loot', fromX, fromY, toX: targetX, toY: targetY, lootAmount: lootAtTarget.amount });
           setFloatingText({ x: targetX, y: targetY, text: `+${lootAtTarget.amount} HP`, color: 'text-green-500' });
-        } else if (action === 'move') {
-          // Move animation
+        } else {
           setAnimation({ type: 'move', fromX, fromY, toX: targetX, toY: targetY });
         }
 
@@ -203,7 +200,6 @@ export function GameBoard({ gameId }: GameBoardProps) {
         }, 800);
 
         setGame(data.game);
-        setActionMode(null);
         setSelectedTile(null);
       }
     } catch (e) {
@@ -214,14 +210,13 @@ export function GameBoard({ gameId }: GameBoardProps) {
     }
   };
 
-  // Handle tile click
+  // Handle tile click - auto-detect action
   const handleTileClick = (x: number, y: number) => {
     if (!myShip || myShip.hasActed || isProcessing) return;
 
-    if (actionMode === 'move' && isValidMove(x, y)) {
-      performAction('move', x, y);
-    } else if (actionMode === 'attack' && isValidAttack(x, y)) {
-      performAction('attack', x, y);
+    // If valid move or attack, perform action
+    if (isValidMove(x, y) || isValidAttack(x, y)) {
+      performAction(x, y);
     } else {
       setSelectedTile({ x, y });
     }
@@ -535,29 +530,14 @@ export function GameBoard({ gameId }: GameBoardProps) {
               </div>
             )}
 
-            {/* Action Buttons */}
+            {/* Action Hint */}
             {isActive && myShip && !myShip.hasActed && !isProcessing && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => setActionMode(actionMode === 'move' ? null : 'move')}
-                  className={`w-full py-3 px-4 rounded-xl font-bold transition-all ${
-                    actionMode === 'move'
-                      ? 'bg-green-500 text-black'
-                      : 'bg-green-500/20 text-green-400 border border-green-500/50 hover:bg-green-500/30'
-                  }`}
-                >
-                  MOVE (Speed: {myShipInfo?.stats.speed})
-                </button>
-                <button
-                  onClick={() => setActionMode(actionMode === 'attack' ? null : 'attack')}
-                  className={`w-full py-3 px-4 rounded-xl font-bold transition-all ${
-                    actionMode === 'attack'
-                      ? 'bg-red-500 text-black'
-                      : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'
-                  }`}
-                >
-                  ATTACK (Range: {myShipInfo?.stats.range})
-                </button>
+              <div className="p-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-center">
+                <p className="text-cyan-400 text-sm font-bold mb-1">Click to Act</p>
+                <p className="text-gray-400 text-xs">
+                  <span className="text-cyan-400">Empty tile</span> = Move (range {myShipInfo?.stats.speed}) |{' '}
+                  <span className="text-red-400">Enemy</span> = Attack (range {myShipInfo?.stats.range})
+                </p>
               </div>
             )}
 
