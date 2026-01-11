@@ -132,15 +132,20 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
         return 1;
     };
 
-    // Generate mock NFTs for testing with space images
+    // Generate 10 mock NFTs for testing with space images from all journeys
     const generateMockNFTs = (): FuelCellNFT[] => {
         const mockNFTs: FuelCellNFT[] = [];
-        // Generate 8 mock NFTs with different journeys
-        const journeys = [1, 2, 3, 5, 8, 12, 18, 25];
+        // Generate 10 mock NFTs covering all journey ranges (1-33)
+        // Journey 1-2: Titan (Legendary)
+        // Journey 3-5: Dreadnought (Epic)
+        // Journey 6-10: Cruiser (Rare)
+        // Journey 11-20: Frigate (Uncommon)
+        // Journey 21+: Fighter (Common)
+        const journeys = [1, 2, 4, 7, 9, 13, 18, 24, 28, 32];
         journeys.forEach((journeyId, index) => {
             const shipData = getShipFromJourney(journeyId);
             mockNFTs.push({
-                tokenId: 1000 + index,
+                tokenId: 100 + index * 500 + journeyId, // Realistic token IDs
                 journeyId,
                 image: getRandomSpaceImage(index),
                 ...shipData

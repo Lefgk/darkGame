@@ -1,18 +1,26 @@
 'use client';
 
+import Image from 'next/image';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { HowToPlay } from '@/components/HowToPlay';
-import { ShipClasses } from '@/components/ShipClasses';
 import { GameStats } from '@/components/GameStats';
 import { ActiveGames } from '@/components/ActiveGames';
 import { NicknameRegistry } from '@/components/NicknameRegistry';
+import { LiveStats } from '@/components/LiveStats';
+import { IMAGES } from '@/lib/images';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#030404] relative overflow-hidden">
       {/* Animated Space Background - Nebula from antigravity */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[url('https://ik.imagekit.io/agogmax/Antigravity/nebula-bg.jpg')] bg-cover bg-center bg-fixed opacity-50"></div>
+        <Image
+          src={IMAGES.NEBULA_BG}
+          alt=""
+          fill
+          className="object-cover opacity-50"
+          priority
+        />
         {/* Gradient Overlays - Red to Blue like antigravity */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#3C00DC]/20 via-[#030404] to-[#030404]"></div>
         <div className="absolute inset-0" style={{
@@ -43,8 +51,14 @@ export default function Home() {
           <div className="container mx-auto px-4 md:px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#FF5001] via-[#3C00DC] to-[#FF5001] rounded-xl flex items-center justify-center shadow-lg shadow-[#FF5001]/50">
-                  <span className="text-2xl">⚔️</span>
+                <div className="w-12 h-12 bg-gradient-to-br from-[#FF5001] via-[#3C00DC] to-[#FF5001] rounded-xl flex items-center justify-center shadow-lg shadow-[#FF5001]/50 overflow-hidden">
+                  <Image
+                    src={IMAGES.FUEL_CELL}
+                    alt="Dark Arena"
+                    width={40}
+                    height={40}
+                    className="object-contain"
+                  />
                 </div>
                 <div>
                   <h1 className="text-2xl md:text-3xl font-black gradient-text-ag">
@@ -63,7 +77,18 @@ export default function Home() {
           <div className="text-center space-y-8 max-w-5xl mx-auto">
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full backdrop-blur-sm">
-              <span className="text-[#FF5001] text-sm font-bold">⚡ LIVE ON PULSECHAIN</span>
+              <Image src={IMAGES.PLS_COLOR} alt="PLS" width={20} height={20} />
+              <span className="text-[#FF5001] text-sm font-bold">LIVE ON PULSECHAIN</span>
+            </div>
+
+            {/* Hero Image */}
+            <div className="relative w-48 h-48 mx-auto">
+              <Image
+                src={IMAGES.FUEL_CELL_NFT_GREEN}
+                alt="FuelCell NFT"
+                fill
+                className="object-contain animate-pulse"
+              />
             </div>
 
             {/* Title */}
@@ -84,7 +109,7 @@ export default function Home() {
               <span className="text-[#3C00DC] font-bold">Survive.</span>{' '}
               <span className="text-[#FF5001] font-bold">Dominate.</span>
               <br />
-              <span className="text-green-400 font-bold text-lg">⚡ FREE TO PLAY (TESTING)</span>
+              <span className="text-green-400 font-bold text-lg">FREE TO PLAY (TESTING)</span>
             </p>
 
             {/* CTA Buttons */}
@@ -94,36 +119,21 @@ export default function Home() {
                 className="group relative overflow-hidden btn-ag-primary text-white font-bold py-5 px-10 rounded-2xl text-lg shadow-2xl shadow-[#FF5001]/30 transition-all hover:scale-105 hover:shadow-[#3C00DC]/60"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  🚀 ENTER ARENA
+                  <Image src={IMAGES.ROCKET} alt="" width={24} height={24} />
+                  ENTER ARENA
                 </span>
               </a>
               <a
                 href="#guide"
-                className="bg-white/5 hover:bg-white/10 backdrop-blur-md text-white font-bold py-5 px-10 rounded-2xl text-lg gradient-border-ag transition-all hover:scale-105"
+                className="bg-white/5 hover:bg-white/10 backdrop-blur-md text-white font-bold py-5 px-10 rounded-2xl text-lg gradient-border-ag transition-all hover:scale-105 flex items-center justify-center gap-2"
               >
-                📖 HOW TO PLAY
+                <Image src={IMAGES.BOOK} alt="" width={24} height={24} />
+                HOW TO PLAY
               </a>
             </div>
 
             {/* Live Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-12 max-w-4xl mx-auto">
-              {[
-                { value: '--', label: 'Active Games', color: 'red' },
-                { value: '--', label: 'Total Players', color: 'blue' },
-                { value: '--', label: 'PLS Prizes', color: 'red' },
-                { value: '--', label: 'Games Played', color: 'blue' },
-              ].map((stat, i) => (
-                <div
-                  key={i}
-                  className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#FF5001]/30 transition-all hover:scale-105"
-                >
-                  <div className={`text-4xl md:text-5xl font-black bg-gradient-to-r ${stat.color === 'red' ? 'from-[#FF5001] to-[#FF7033]' : 'from-[#3C00DC] to-[#5020FF]'} bg-clip-text text-transparent`}>
-                    {stat.value}
-                  </div>
-                  <div className="text-gray-400 text-sm mt-2 font-medium">{stat.label}</div>
-                </div>
-              ))}
-            </div>
+            <LiveStats />
           </div>
         </section>
 
@@ -149,17 +159,6 @@ export default function Home() {
           <HowToPlay />
         </section>
 
-        {/* Ship Classes Section */}
-        <section className="container mx-auto px-4 md:px-6 py-16 md:py-24">
-          <div className="text-center mb-12">
-            <h3 className="text-5xl md:text-6xl font-black text-white mb-4">
-              SHIP <span className="gradient-text-ag">CLASSES</span>
-            </h3>
-            <p className="text-gray-400 text-lg">Your FuelCell journey determines your ship rarity</p>
-          </div>
-          <ShipClasses />
-        </section>
-
         {/* Game Stats Section */}
         <section className="container mx-auto px-4 md:px-6 py-16 md:py-24">
           <GameStats />
@@ -169,17 +168,28 @@ export default function Home() {
         <footer className="border-t border-white/5 py-12 mt-16 bg-black/20 backdrop-blur-xl">
           <div className="container mx-auto px-4 md:px-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-              <div className="text-center md:text-left">
-                <h4 className="text-3xl font-black gradient-text-ag mb-2">
-                  DARK ARENA
-                </h4>
-                <p className="text-gray-500 text-sm">Built on PulseChain • Powered by FuelCell NFTs</p>
+              <div className="text-center md:text-left flex items-center gap-4">
+                <Image src={IMAGES.LOGO} alt="Antigravity" width={50} height={50} />
+                <div>
+                  <h4 className="text-3xl font-black gradient-text-ag mb-1">
+                    DARK ARENA
+                  </h4>
+                  <p className="text-gray-500 text-sm">Built on PulseChain • Powered by FuelCell NFTs</p>
+                </div>
               </div>
-              <div className="flex gap-8 text-gray-400 text-sm">
-                <a href="#" className="hover:text-[#FF5001] transition-colors font-medium">Documentation</a>
-                <a href="#" className="hover:text-[#FF5001] transition-colors font-medium">Twitter</a>
-                <a href="#" className="hover:text-[#FF5001] transition-colors font-medium">Discord</a>
-                <a href="#" className="hover:text-[#FF5001] transition-colors font-medium">GitHub</a>
+              <div className="flex gap-6">
+                <a href="#" className="hover:opacity-80 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10">
+                  <Image src={IMAGES.DOCUMENT} alt="Docs" width={24} height={24} />
+                </a>
+                <a href="#" className="hover:opacity-80 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10">
+                  <Image src={IMAGES.TWITTER} alt="Twitter" width={24} height={24} />
+                </a>
+                <a href="#" className="hover:opacity-80 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10">
+                  <Image src={IMAGES.DISCORD} alt="Discord" width={24} height={24} />
+                </a>
+                <a href="#" className="hover:opacity-80 transition-opacity p-2 bg-white/5 rounded-lg hover:bg-white/10">
+                  <Image src={IMAGES.TELEGRAM} alt="Telegram" width={24} height={24} />
+                </a>
               </div>
             </div>
             <div className="text-center text-gray-600 text-sm mt-8 pt-8 border-t border-white/5">

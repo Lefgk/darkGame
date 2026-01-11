@@ -6,11 +6,11 @@ import { GAME_CONFIG, API_URL } from '@/lib/constants';
 
 // Ship class configuration
 const SHIP_CLASS_INFO: Record<number, { name: string; emoji: string; color: string; bgColor: string; stats: { maxHP: number; speed: number; range: number; damage: number } }> = {
-  0: { name: 'Fighter', emoji: '🚀', color: 'text-gray-400', bgColor: 'bg-gray-500/10 border-gray-500/50', stats: { maxHP: 100, speed: 3, range: 2, damage: 15 } },
-  1: { name: 'Frigate', emoji: '🛸', color: 'text-green-400', bgColor: 'bg-green-500/10 border-green-500/50', stats: { maxHP: 120, speed: 2, range: 2, damage: 18 } },
-  2: { name: 'Cruiser', emoji: '🌀', color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/50', stats: { maxHP: 150, speed: 2, range: 3, damage: 22 } },
-  3: { name: 'Dreadnought', emoji: '🔱', color: 'text-purple-400', bgColor: 'bg-purple-500/10 border-purple-500/50', stats: { maxHP: 200, speed: 1, range: 3, damage: 28 } },
-  4: { name: 'Titan', emoji: '👑', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10 border-yellow-500/50', stats: { maxHP: 250, speed: 1, range: 4, damage: 35 } },
+  0: { name: 'Fighter', emoji: '🚀', color: 'text-gray-400', bgColor: 'bg-gray-500/10 border-gray-500/50', stats: { maxHP: 100, speed: 1, range: 1, damage: 15 } },
+  1: { name: 'Frigate', emoji: '🛸', color: 'text-green-400', bgColor: 'bg-green-500/10 border-green-500/50', stats: { maxHP: 120, speed: 1, range: 1, damage: 18 } },
+  2: { name: 'Cruiser', emoji: '🌀', color: 'text-blue-400', bgColor: 'bg-blue-500/10 border-blue-500/50', stats: { maxHP: 150, speed: 1, range: 1, damage: 22 } },
+  3: { name: 'Dreadnought', emoji: '🔱', color: 'text-purple-400', bgColor: 'bg-purple-500/10 border-purple-500/50', stats: { maxHP: 200, speed: 1, range: 1, damage: 28 } },
+  4: { name: 'Titan', emoji: '👑', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10 border-yellow-500/50', stats: { maxHP: 250, speed: 1, range: 1, damage: 35 } },
 };
 
 interface Ship {
@@ -84,6 +84,11 @@ interface CombatModal {
   targetHP: number;
   targetMaxHP: number;
   killed: boolean;
+  // Counter attack info
+  counterDamage?: number;
+  attackerHP?: number;
+  attackerMaxHP?: number;
+  attackerKilled?: boolean;
 }
 
 export function GameBoard({ gameId }: GameBoardProps) {
@@ -97,6 +102,10 @@ export function GameBoard({ gameId }: GameBoardProps) {
   const [floatingText, setFloatingText] = useState<{ x: number; y: number; text: string; color: string } | null>(null);
   const [combatModal, setCombatModal] = useState<CombatModal | null>(null);
   const [prevHP, setPrevHP] = useState<number | null>(null);
+  const [showGameOver, setShowGameOver] = useState(true);
+  const [prevTurn, setPrevTurn] = useState<number>(0);
+  const [prevShipPositions, setPrevShipPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const [turnSummary, setTurnSummary] = useState<{ show: boolean; movements: Array<{ name: string; emoji: string; fromX: number; fromY: number; toX: number; toY: number; isNPC: boolean }> } | null>(null);
 
   // Fetch game data from API
   const fetchGame = useCallback(async () => {
@@ -124,6 +133,46 @@ export function GameBoard({ gameId }: GameBoardProps) {
     const interval = setInterval(fetchGame, 1000); // Poll every second for real-time feel
     return () => clearInterval(interval);
   }, [fetchGame]);
+
+  // Detect turn changes and show movement summary
+  useEffect(() => {
+    if (!game || game.state !== 1) return;
+
+    if (game.turn > prevTurn && prevTurn > 0) {
+      // Turn changed! Calculate movements
+      const movements: Array<{ name: string; emoji: string; fromX: number; fromY: number; toX: number; toY: number; isNPC: boolean }> = [];
+
+      game.ships.forEach(ship => {
+        const prevPos = prevShipPositions.get(ship.player);
+        if (prevPos && (prevPos.x !== ship.x || prevPos.y !== ship.y)) {
+          const info = SHIP_CLASS_INFO[ship.shipClass];
+          movements.push({
+            name: ship.isNPC ? (ship.npcName || 'NPC') : ship.player,
+            emoji: info.emoji,
+            fromX: prevPos.x,
+            fromY: prevPos.y,
+            toX: ship.x,
+            toY: ship.y,
+            isNPC: ship.isNPC || false,
+          });
+        }
+      });
+
+      if (movements.length > 0) {
+        setTurnSummary({ show: true, movements });
+        // Auto-close after 3 seconds
+        setTimeout(() => setTurnSummary(null), 3000);
+      }
+    }
+
+    // Save current positions for next comparison
+    setPrevTurn(game.turn);
+    const newPositions = new Map<string, { x: number; y: number }>();
+    game.ships.forEach(ship => {
+      newPositions.set(ship.player, { x: ship.x, y: ship.y });
+    });
+    setPrevShipPositions(newPositions);
+  }, [game?.turn, game?.ships]);
 
   // Parse data
   const allShips = game?.ships || [];
@@ -212,12 +261,13 @@ export function GameBoard({ gameId }: GameBoardProps) {
           const baseDamage = myInfo.stats.damage;
           const randomRoll = data.damage - baseDamage; // The random part (-5 to +5)
           const newTargetHP = Math.max(0, targetShip.currentHP - data.damage);
+          const newAttackerHP = Math.max(0, myShip.currentHP - (data.counterDamage || 0));
           setCombatModal({
             show: true,
             attacker: 'YOU',
             attackerEmoji: myInfo.emoji,
             attackerClass: myInfo.name,
-            target: targetShip.isNPC ? (targetShip.npcName || 'Enemy') : targetShip.player.slice(0, 8) + '...',
+            target: targetShip.isNPC ? (targetShip.npcName || 'Enemy') : targetShip.player,
             targetEmoji: targetInfo.emoji,
             targetClass: targetInfo.name,
             baseDamage: baseDamage,
@@ -226,6 +276,11 @@ export function GameBoard({ gameId }: GameBoardProps) {
             targetHP: newTargetHP,
             targetMaxHP: targetInfo.stats.maxHP,
             killed: newTargetHP <= 0,
+            // Counter attack info
+            counterDamage: data.counterDamage,
+            attackerHP: newAttackerHP,
+            attackerMaxHP: myInfo.stats.maxHP,
+            attackerKilled: newAttackerHP <= 0,
           });
 
           // Auto-close modal after 5s
@@ -378,8 +433,8 @@ export function GameBoard({ gameId }: GameBoardProps) {
           <span className="text-xl opacity-30">💀</span>
         )}
 
-        {/* Loot - only visible when adjacent */}
-        {lootItem && !ship && canSeeLoot && (
+        {/* Loot - always visible */}
+        {lootItem && !ship && (
           <span className="text-xl animate-pulse text-yellow-400">⚡</span>
         )}
 
@@ -451,7 +506,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
               isActive ? 'bg-green-500/20 text-green-400' :
               'bg-gray-500/20 text-gray-400'
             }`}>
-              {isLobby ? 'LOBBY' : isActive ? 'ACTIVE' : 'FINISHED'}
+              {isLobby ? 'LOBBY' : isActive ? (myShip?.hasActed ? 'WAITING' : 'YOUR TURN') : 'FINISHED'}
             </div>
             {/* Turn Timer */}
             {isActive && (
@@ -606,11 +661,11 @@ export function GameBoard({ gameId }: GameBoardProps) {
 
             {/* Action Log */}
             {game.actionLog && game.actionLog.length > 0 && (
-              <div className="p-4 rounded-xl border border-gray-700 bg-gray-900/50">
-                <h4 className="font-bold text-gray-300 mb-2">Action Log</h4>
-                <div className="space-y-1 text-xs text-gray-400 max-h-40 overflow-y-auto">
-                  {game.actionLog.slice().reverse().slice(0, 10).map((log, i) => (
-                    <div key={i} className="border-b border-gray-800 pb-1">{log}</div>
+              <div className="p-5 rounded-xl border border-indigo-500/30 bg-gradient-to-br from-gray-900/80 to-indigo-900/20">
+                <h4 className="font-bold text-indigo-400 mb-3 text-lg">📜 Battle Log</h4>
+                <div className="space-y-2 text-sm text-gray-300 max-h-64 overflow-y-auto">
+                  {game.actionLog.slice().reverse().slice(0, 15).map((log, i) => (
+                    <div key={i} className="border-b border-gray-700/50 pb-2 leading-relaxed break-all">{log}</div>
                   ))}
                 </div>
               </div>
@@ -657,26 +712,29 @@ export function GameBoard({ gameId }: GameBoardProps) {
             </div>
 
             {/* Legend */}
-            <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-gray-400">
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-gradient-to-br from-purple-900/60 to-red-900/40 border border-purple-500/30 rounded" />
-                <span>Cosmic Storm</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-cyan-500/20 border border-cyan-400/50 rounded" />
-                <span>Warp Zone</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-red-500/20 border border-red-500/50 rounded" />
-                <span>Target Lock</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-red-400">☠</span>
-                <span>Enemy</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-yellow-400">⚡</span>
-                <span>Energy</span>
+            <div className="mt-6 p-4 bg-gray-900/50 rounded-xl border border-gray-700/50">
+              <h4 className="text-center text-gray-400 font-bold mb-4 text-base">LEGEND</h4>
+              <div className="flex flex-wrap justify-center gap-6 text-base text-gray-300">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-gradient-to-br from-purple-900/60 to-red-900/40 border-2 border-purple-500/30 rounded" />
+                  <span>Cosmic Storm (Danger)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-cyan-500/20 border-2 border-cyan-400/50 rounded" />
+                  <span>Move Zone</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-red-500/20 border-2 border-red-500/50 rounded" />
+                  <span>Attack Target</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl text-red-400">☠</span>
+                  <span>Enemy Ship</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl text-yellow-400">⚡</span>
+                  <span>Energy Pickup</span>
+                </div>
               </div>
             </div>
           </div>
@@ -779,34 +837,34 @@ export function GameBoard({ gameId }: GameBoardProps) {
             onClick={() => setCombatModal(null)}
           >
             <div
-              className="bg-gradient-to-br from-[#030404] to-[#1a0a30] border-2 border-[#FF5001]/50 rounded-2xl p-6 text-center max-w-md shadow-2xl shadow-[#FF5001]/30 cursor-default"
+              className="bg-gradient-to-br from-[#030404] to-[#1a0a30] border-2 border-[#FF5001]/50 rounded-3xl p-10 text-center max-w-2xl w-full mx-4 shadow-2xl shadow-[#FF5001]/30 cursor-default"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-red-400 text-sm font-bold mb-3">⚔️ COMBAT ⚔️</div>
+              <div className="text-red-400 text-2xl font-bold mb-6">⚔️ COMBAT ⚔️</div>
 
-              <div className="flex items-center justify-center gap-6 mb-4">
+              <div className="flex items-center justify-center gap-12 mb-8">
                 {/* Attacker */}
                 <div className="text-center">
-                  <div className="text-5xl mb-1">{combatModal.attackerEmoji}</div>
-                  <div className="text-yellow-400 font-bold">{combatModal.attacker}</div>
-                  <div className="text-gray-500 text-xs">{combatModal.attackerClass}</div>
+                  <div className="text-8xl mb-2">{combatModal.attackerEmoji}</div>
+                  <div className="text-yellow-400 font-bold text-2xl">{combatModal.attacker}</div>
+                  <div className="text-gray-500 text-lg">{combatModal.attackerClass}</div>
                 </div>
 
                 {/* Arrow */}
-                <div className="text-3xl text-red-400 animate-pulse">⚔️</div>
+                <div className="text-6xl text-red-400 animate-pulse">⚔️</div>
 
                 {/* Target */}
                 <div className="text-center">
-                  <div className="text-5xl mb-1">{combatModal.targetEmoji}</div>
-                  <div className="text-cyan-400 font-bold truncate max-w-[100px]">{combatModal.target}</div>
-                  <div className="text-gray-500 text-xs">{combatModal.targetClass}</div>
+                  <div className="text-8xl mb-2">{combatModal.targetEmoji}</div>
+                  <div className="text-cyan-400 font-bold text-sm break-all max-w-[200px]">{combatModal.target}</div>
+                  <div className="text-gray-500 text-lg">{combatModal.targetClass}</div>
                 </div>
               </div>
 
               {/* Damage Breakdown */}
-              <div className="bg-black/40 rounded-xl p-3 mb-4 text-left">
-                <div className="text-xs text-gray-400 mb-2 text-center font-bold">DAMAGE CALCULATION</div>
-                <div className="space-y-1 text-sm font-mono">
+              <div className="bg-black/40 rounded-xl p-6 mb-6 text-left max-w-md mx-auto">
+                <div className="text-lg text-gray-400 mb-4 text-center font-bold">DAMAGE CALCULATION</div>
+                <div className="space-y-2 text-xl font-mono">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Base Attack:</span>
                     <span className="text-white">{combatModal.baseDamage}</span>
@@ -817,46 +875,134 @@ export function GameBoard({ gameId }: GameBoardProps) {
                       {combatModal.randomRoll >= 0 ? '+' : ''}{combatModal.randomRoll}
                     </span>
                   </div>
-                  <div className="border-t border-gray-600 pt-1 flex justify-between">
+                  <div className="border-t border-gray-600 pt-2 flex justify-between">
                     <span className="text-yellow-400 font-bold">Total Damage:</span>
-                    <span className="text-red-400 font-bold text-lg">-{combatModal.finalDamage}</span>
+                    <span className="text-red-400 font-bold text-2xl">-{combatModal.finalDamage}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Target HP Bar */}
-              <div className="mb-3">
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Target HP</span>
-                  <span className="font-mono">{combatModal.targetHP} / {combatModal.targetMaxHP}</span>
+              {/* HP Bars - Side by Side */}
+              <div className="grid grid-cols-2 gap-6 mb-6 max-w-lg mx-auto">
+                {/* Target HP */}
+                <div>
+                  <div className="flex justify-between text-base text-gray-400 mb-2">
+                    <span className="text-cyan-400 font-bold">Target</span>
+                    <span className="font-mono">{combatModal.targetHP} / {combatModal.targetMaxHP}</span>
+                  </div>
+                  <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, (combatModal.targetHP / combatModal.targetMaxHP) * 100)}%`,
+                        backgroundColor: combatModal.targetHP <= 0 ? '#ef4444' :
+                          combatModal.targetHP < combatModal.targetMaxHP * 0.3 ? '#ef4444' :
+                          combatModal.targetHP < combatModal.targetMaxHP * 0.6 ? '#eab308' : '#22c55e'
+                      }}
+                    />
+                  </div>
+                  {combatModal.killed && (
+                    <div className="text-red-500 font-bold text-sm mt-1 animate-pulse">DESTROYED</div>
+                  )}
                 </div>
-                <div className="h-4 bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full transition-all duration-500"
-                    style={{
-                      width: `${(combatModal.targetHP / combatModal.targetMaxHP) * 100}%`,
-                      backgroundColor: combatModal.targetHP <= 0 ? '#ef4444' :
-                        combatModal.targetHP < combatModal.targetMaxHP * 0.3 ? '#ef4444' :
-                        combatModal.targetHP < combatModal.targetMaxHP * 0.6 ? '#eab308' : '#22c55e'
-                    }}
-                  />
+
+                {/* Attacker HP (after counter) */}
+                <div>
+                  <div className="flex justify-between text-base text-gray-400 mb-2">
+                    <span className="text-yellow-400 font-bold">You</span>
+                    <span className="font-mono">{combatModal.attackerHP ?? '-'} / {combatModal.attackerMaxHP ?? '-'}</span>
+                  </div>
+                  <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, ((combatModal.attackerHP ?? 0) / (combatModal.attackerMaxHP ?? 1)) * 100)}%`,
+                        backgroundColor: (combatModal.attackerHP ?? 0) <= 0 ? '#ef4444' :
+                          (combatModal.attackerHP ?? 0) < (combatModal.attackerMaxHP ?? 1) * 0.3 ? '#ef4444' :
+                          (combatModal.attackerHP ?? 0) < (combatModal.attackerMaxHP ?? 1) * 0.6 ? '#eab308' : '#22c55e'
+                      }}
+                    />
+                  </div>
+                  {combatModal.attackerKilled && (
+                    <div className="text-red-500 font-bold text-sm mt-1 animate-pulse">DESTROYED</div>
+                  )}
                 </div>
               </div>
 
-              {/* Kill notification */}
-              {combatModal.killed && (
-                <div className="text-2xl font-black text-red-500 animate-bounce mt-2">
-                  💀 DESTROYED! 💀
+              {/* Counter Damage Display */}
+              {combatModal.counterDamage !== undefined && combatModal.counterDamage > 0 && (
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-4 max-w-md mx-auto">
+                  <div className="text-orange-400 font-bold text-lg mb-2">⚡ COUNTER ATTACK!</div>
+                  <div className="text-white text-xl font-mono">
+                    You received <span className="text-red-400 font-bold text-2xl">-{combatModal.counterDamage}</span> damage
+                  </div>
+                </div>
+              )}
+
+              {/* Kill notifications */}
+              {(combatModal.killed || combatModal.attackerKilled) && (
+                <div className="mt-4 space-y-2">
+                  {combatModal.killed && (
+                    <div className="text-3xl font-black text-green-500 animate-bounce">
+                      🎯 ENEMY DESTROYED! 🎯
+                    </div>
+                  )}
+                  {combatModal.attackerKilled && (
+                    <div className="text-3xl font-black text-red-500 animate-bounce">
+                      💀 YOU DIED! 💀
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
 
+        {/* Turn Summary Modal */}
+        {turnSummary?.show && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 cursor-pointer"
+            onClick={() => setTurnSummary(null)}
+          >
+            <div
+              className="bg-gradient-to-br from-[#030404] to-[#1a0a30] border-2 border-cyan-500/50 rounded-3xl p-8 text-center max-w-lg w-full mx-4 shadow-2xl shadow-cyan-500/20 cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-cyan-400 text-2xl font-bold mb-6">📍 TURN {game?.turn} - MOVEMENTS 📍</div>
+
+              <div className="space-y-4 max-h-80 overflow-y-auto">
+                {turnSummary.movements.map((move, i) => (
+                  <div key={i} className={`flex items-center gap-4 p-3 rounded-xl ${move.isNPC ? 'bg-red-500/10 border border-red-500/30' : 'bg-cyan-500/10 border border-cyan-500/30'}`}>
+                    <span className="text-4xl">{move.emoji}</span>
+                    <div className="flex-1 text-left">
+                      <div className={`font-bold ${move.isNPC ? 'text-red-400' : 'text-cyan-400'} text-sm break-all`}>
+                        {move.name}
+                      </div>
+                      <div className="text-gray-400 text-lg">
+                        ({String.fromCharCode(65 + move.fromX)}{move.fromY + 1}) → ({String.fromCharCode(65 + move.toX)}{move.toY + 1})
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {turnSummary.movements.length === 0 && (
+                <div className="text-gray-500 py-8">No movements this turn</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Game Over Overlay */}
-        {isFinished && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-900 border border-purple-500/50 rounded-2xl p-8 text-center max-w-lg">
+        {isFinished && showGameOver && (
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 cursor-pointer"
+            onClick={() => setShowGameOver(false)}
+          >
+            <div
+              className="bg-gray-900 border border-purple-500/50 rounded-2xl p-8 text-center max-w-lg cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-4xl font-black mb-4 gradient-text-ag">
                 GAME OVER
               </h2>

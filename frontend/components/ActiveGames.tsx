@@ -118,6 +118,11 @@ export function ActiveGames() {
 
             const data = await res.json();
             if (!res.ok) {
+                // If already joined, just navigate to the game
+                if (data.error === 'Already joined') {
+                    router.push(`/game/${gameId}`);
+                    return;
+                }
                 alert(data.error || 'Failed to join game');
                 return;
             }

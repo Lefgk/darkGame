@@ -13,11 +13,11 @@ const TURN_DURATION = 15; // seconds
 
 // Ship classes based on journey
 const SHIP_CLASSES = {
-  0: { name: 'Fighter', hp: 100, attack: 15, range: 2, speed: 3 },
-  1: { name: 'Frigate', hp: 120, attack: 18, range: 2, speed: 2 },
-  2: { name: 'Cruiser', hp: 150, attack: 22, range: 3, speed: 2 },
-  3: { name: 'Dreadnought', hp: 200, attack: 28, range: 3, speed: 1 },
-  4: { name: 'Titan', hp: 250, attack: 35, range: 4, speed: 1 },
+  0: { name: 'Fighter', hp: 100, attack: 15, range: 1, speed: 1 },
+  1: { name: 'Frigate', hp: 120, attack: 18, range: 1, speed: 1 },
+  2: { name: 'Cruiser', hp: 150, attack: 22, range: 1, speed: 1 },
+  3: { name: 'Dreadnought', hp: 200, attack: 28, range: 1, speed: 1 },
+  4: { name: 'Titan', hp: 250, attack: 35, range: 1, speed: 1 },
 };
 
 // Types
@@ -224,7 +224,7 @@ app.post('/game/:gameId/join', (req, res) => {
   };
 
   game.ships.push(ship);
-  game.actionLog.push(`${player.slice(0, 6)}... joined with ${stats.name}`);
+  game.actionLog.push(`${player} joined with ${stats.name}`);
 
   res.json({ success: true, ship, playerCount: game.ships.length });
 });
@@ -285,39 +285,83 @@ app.post('/game/:gameId/action', (req, res) => {
   const target = game.ships.find(s => s.isAlive && s.x === targetX && s.y === targetY && s.player !== player);
 
   if (target) {
-    // ATTACK - enemy at target tile
+    // ATTACK - enemy at target tile (MUTUAL COMBAT)
     if (dist > stats.range) {
       return res.status(400).json({ error: `Target out of range (max ${stats.range})` });
     }
 
-    // Calculate damage with some randomness
+    // Get target's stats for counter-attack
+    const targetStats = SHIP_CLASSES[target.shipClass as keyof typeof SHIP_CLASSES];
+
+    // Calculate attacker's damage
     const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
     target.currentHP -= damage;
     ship.damageDealt += damage;
     ship.hasActed = true;
 
-    const targetName = target.isNPC ? target.npcName : target.player.slice(0, 6) + '...';
-    game.actionLog.push(`${player.slice(0, 6)}... attacked ${targetName} for ${damage} damage`);
+    // Calculate target's counter-attack damage (mutual combat)
+    const counterDamage = targetStats.attack + Math.floor(Math.random() * 10) - 5;
+    ship.currentHP -= counterDamage;
+    target.damageDealt += counterDamage;
+
+    const targetName = target.isNPC ? target.npcName : target.player;
+
+    // Store attacker's original position for swap/push
+    const attackerOrigX = ship.x;
+    const attackerOrigY = ship.y;
+
+    // Check if attacker died from counter-attack
+    let attackerKilled = false;
+    if (ship.currentHP <= 0) {
+      ship.currentHP = 0;
+      ship.isAlive = false;
+      target.kills++;
+      attackerKilled = true;
+      game.actionLog.push(`${targetName} counter-attacked ${player} for ${counterDamage} damage`);
+      game.actionLog.push(`${player} was destroyed!`);
+      game.loot.push({ x: ship.x, y: ship.y, amount: 25, collected: false });
+    }
 
     if (target.currentHP <= 0) {
       target.currentHP = 0;
       target.isAlive = false;
       ship.kills++;
+
+      // Move attacker to target's tile (target is dead) - only if attacker survived
+      if (!attackerKilled) {
+        ship.x = targetX;
+        ship.y = targetY;
+      }
+
+      game.actionLog.push(`${player} attacked ${targetName} for ${damage} damage`);
       game.actionLog.push(`${targetName} was destroyed!`);
 
-      // Drop loot on death
+      // Drop loot on death (at attacker's original position so they don't auto-collect)
       game.loot.push({
-        x: target.x,
-        y: target.y,
+        x: attackerKilled ? targetX : attackerOrigX,
+        y: attackerKilled ? targetY : attackerOrigY,
         amount: 25,
         collected: false,
       });
 
-      // Check for game end
+      checkGameEnd(game);
+    } else if (!attackerKilled) {
+      // Both survived - swap positions
+      ship.x = targetX;
+      ship.y = targetY;
+      target.x = attackerOrigX;
+      target.y = attackerOrigY;
+
+      game.actionLog.push(`${player} attacked ${targetName} for ${damage} damage`);
+      game.actionLog.push(`${targetName} counter-attacked for ${counterDamage} damage`);
+    }
+
+    // Check if attacker died (game end check)
+    if (attackerKilled) {
       checkGameEnd(game);
     }
 
-    res.json({ success: true, action: 'attack', damage, game: serializeGame(game) });
+    res.json({ success: true, action: 'attack', damage, counterDamage, game: serializeGame(game) });
   } else {
     // MOVE - empty tile
     if (dist > stats.speed) {
@@ -333,10 +377,10 @@ app.post('/game/:gameId/action', (req, res) => {
     if (loot) {
       ship.currentHP = Math.min(ship.maxHP, ship.currentHP + loot.amount);
       loot.collected = true;
-      game.actionLog.push(`${player.slice(0, 6)}... collected ${loot.amount} HP`);
+      game.actionLog.push(`${player} collected ${loot.amount} HP`);
     }
 
-    game.actionLog.push(`${player.slice(0, 6)}... moved to (${targetX}, ${targetY})`);
+    game.actionLog.push(`${player} moved to (${targetX}, ${targetY})`);
     res.json({ success: true, action: 'move', game: serializeGame(game) });
   }
 });
@@ -392,7 +436,7 @@ function advanceTurn(game: Game) {
       if (ship.isAlive && !isInSafeZone(ship.x, ship.y, game.zoneOffset, game.zoneSize)) {
         const damage = 20;
         ship.currentHP -= damage;
-        const name = ship.isNPC ? ship.npcName : ship.player.slice(0, 6) + '...';
+        const name = ship.isNPC ? ship.npcName : ship.player;
         game.actionLog.push(`${name} takes ${damage} zone damage`);
 
         if (ship.currentHP <= 0) {
@@ -427,7 +471,7 @@ function performNPCAction(game: Game, npc: Ship) {
       npc.damageDealt += damage;
       npc.hasActed = true;
 
-      const targetName = enemy.player.slice(0, 6) + '...';
+      const targetName = enemy.player;
       game.actionLog.push(`${npc.npcName} attacks ${targetName} for ${damage} damage!`);
 
       if (enemy.currentHP <= 0) {
@@ -474,7 +518,7 @@ function checkGameEnd(game: Game) {
   game.thirdPlace = ranked[2]?.player || '0x0000000000000000000000000000000000000000';
 
   const winnerShip = ranked[0];
-  const winnerName = winnerShip?.isNPC ? winnerShip.npcName : winnerShip?.player.slice(0, 6) + '...';
+  const winnerName = winnerShip?.isNPC ? winnerShip.npcName : winnerShip?.player;
   game.actionLog.push(`Game Over! Winner: ${winnerName}`);
 }
 
