@@ -381,8 +381,8 @@ function advanceTurn(game: Game) {
     performNPCAction(game, npc);
   });
 
-  // Zone shrink every 3 turns
-  if (game.turn % 3 === 0 && game.zoneSize > 4) {
+  // Zone shrink every 10 turns
+  if (game.turn % 10 === 0 && game.zoneSize > 4) {
     game.zoneSize--;
     game.zoneOffset = Math.floor((GRID_SIZE - game.zoneSize) / 2);
     game.actionLog.push(`Zone shrinks to ${game.zoneSize}x${game.zoneSize}!`);
@@ -409,85 +409,43 @@ function advanceTurn(game: Game) {
   game.actionLog.push(`Turn ${game.turn} started`);
 }
 
-// NPC AI logic
+// NPC AI logic - NPCs are stationary, only attack if player comes in range
 function performNPCAction(game: Game, npc: Ship) {
   const stats = SHIP_CLASSES[npc.shipClass as keyof typeof SHIP_CLASSES];
-  const enemies = game.ships.filter(s => s.isAlive && s.player !== npc.player);
+  const enemies = game.ships.filter(s => s.isAlive && !s.isNPC); // Only target players, not other NPCs
 
   if (enemies.length === 0) return;
 
-  // Find closest enemy
-  let closestEnemy: Ship | null = null;
-  let closestDist = Infinity;
-  enemies.forEach(enemy => {
+  // Find closest player in range
+  for (const enemy of enemies) {
     const dist = distance(npc.x, npc.y, enemy.x, enemy.y);
-    if (dist < closestDist) {
-      closestDist = dist;
-      closestEnemy = enemy;
-    }
-  });
 
-  if (!closestEnemy) return;
-
-  // If enemy in range, attack
-  if (closestDist <= stats.range) {
-    const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
-    closestEnemy.currentHP -= damage;
-    npc.damageDealt += damage;
-    npc.hasActed = true;
-
-    const targetName = closestEnemy.isNPC ? closestEnemy.npcName : closestEnemy.player.slice(0, 6) + '...';
-    game.actionLog.push(`${npc.npcName} attacks ${targetName} for ${damage} damage!`);
-
-    if (closestEnemy.currentHP <= 0) {
-      closestEnemy.currentHP = 0;
-      closestEnemy.isAlive = false;
-      npc.kills++;
-      game.actionLog.push(`${npc.npcName} destroyed ${targetName}!`);
-
-      // Drop loot
-      game.loot.push({ x: closestEnemy.x, y: closestEnemy.y, amount: 25, collected: false });
-      checkGameEnd(game);
-    }
-  } else {
-    // Move toward enemy
-    let bestX = npc.x;
-    let bestY = npc.y;
-    let bestDist = closestDist;
-
-    // Check all possible moves
-    for (let dx = -stats.speed; dx <= stats.speed; dx++) {
-      for (let dy = -stats.speed; dy <= stats.speed; dy++) {
-        const newX = npc.x + dx;
-        const newY = npc.y + dy;
-
-        if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) continue;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) > stats.speed) continue;
-        if (game.ships.some(s => s.isAlive && s.x === newX && s.y === newY)) continue;
-
-        const newDist = distance(newX, newY, closestEnemy!.x, closestEnemy!.y);
-        if (newDist < bestDist) {
-          bestDist = newDist;
-          bestX = newX;
-          bestY = newY;
-        }
-      }
-    }
-
-    if (bestX !== npc.x || bestY !== npc.y) {
-      npc.x = bestX;
-      npc.y = bestY;
+    // Only attack if player is within range - NPCs don't move!
+    if (dist <= stats.range) {
+      const damage = stats.attack + Math.floor(Math.random() * 10) - 5;
+      enemy.currentHP -= damage;
+      npc.damageDealt += damage;
       npc.hasActed = true;
 
-      // Check for loot
-      const loot = game.loot.find(l => !l.collected && l.x === bestX && l.y === bestY);
-      if (loot) {
-        npc.currentHP = Math.min(npc.maxHP, npc.currentHP + loot.amount);
-        loot.collected = true;
-        game.actionLog.push(`${npc.npcName} collected ${loot.amount} HP`);
+      const targetName = enemy.player.slice(0, 6) + '...';
+      game.actionLog.push(`${npc.npcName} attacks ${targetName} for ${damage} damage!`);
+
+      if (enemy.currentHP <= 0) {
+        enemy.currentHP = 0;
+        enemy.isAlive = false;
+        npc.kills++;
+        game.actionLog.push(`${npc.npcName} destroyed ${targetName}!`);
+
+        // Drop loot
+        game.loot.push({ x: enemy.x, y: enemy.y, amount: 25, collected: false });
+        checkGameEnd(game);
       }
+      return; // Only attack one target per turn
     }
   }
+
+  // NPC doesn't move - just stands guard
+  npc.hasActed = true;
 }
 
 // Helper: Check if game should end

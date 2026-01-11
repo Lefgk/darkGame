@@ -88,7 +88,7 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
         // Check journeys 1-33 to find which one contains this tokenId
         for (let journey = 1; journey <= 33; journey++) {
             try {
-                const startRes = await fetch('http://127.0.0.1:8545', {
+                const startRes = await fetch('https://rpc.pulsechain.com', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -106,7 +106,7 @@ export function NFTShipSelector({ onSelectNFT }: { onSelectNFT: (tokenId: number
 
                 if (startTokenId === 0) continue;
 
-                const endRes = await fetch('http://127.0.0.1:8545', {
+                const endRes = await fetch('https://rpc.pulsechain.com', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

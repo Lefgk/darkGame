@@ -69,6 +69,23 @@ interface ActionAnimation {
   lootAmount?: number;
 }
 
+// Combat modal interface
+interface CombatModal {
+  show: boolean;
+  attacker: string;
+  attackerEmoji: string;
+  attackerClass: string;
+  target: string;
+  targetEmoji: string;
+  targetClass: string;
+  baseDamage: number;
+  randomRoll: number;
+  finalDamage: number;
+  targetHP: number;
+  targetMaxHP: number;
+  killed: boolean;
+}
+
 export function GameBoard({ gameId }: GameBoardProps) {
   const { address } = useAccount();
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -78,6 +95,8 @@ export function GameBoard({ gameId }: GameBoardProps) {
   const [error, setError] = useState<string | null>(null);
   const [animation, setAnimation] = useState<ActionAnimation | null>(null);
   const [floatingText, setFloatingText] = useState<{ x: number; y: number; text: string; color: string } | null>(null);
+  const [combatModal, setCombatModal] = useState<CombatModal | null>(null);
+  const [prevHP, setPrevHP] = useState<number | null>(null);
 
   // Fetch game data from API
   const fetchGame = useCallback(async () => {
@@ -183,9 +202,34 @@ export function GameBoard({ gameId }: GameBoardProps) {
         alert(data.error || 'Action failed');
       } else {
         // Show animation based on what happened
-        if (data.action === 'attack') {
+        if (data.action === 'attack' && targetShip) {
           setAnimation({ type: 'attack', fromX, fromY, toX: targetX, toY: targetY, damage: data.damage });
           setFloatingText({ x: targetX, y: targetY, text: `-${data.damage}`, color: 'text-red-500' });
+
+          // Show combat modal with detailed breakdown
+          const targetInfo = SHIP_CLASS_INFO[targetShip.shipClass];
+          const myInfo = SHIP_CLASS_INFO[myShip.shipClass];
+          const baseDamage = myInfo.stats.damage;
+          const randomRoll = data.damage - baseDamage; // The random part (-5 to +5)
+          const newTargetHP = Math.max(0, targetShip.currentHP - data.damage);
+          setCombatModal({
+            show: true,
+            attacker: 'YOU',
+            attackerEmoji: myInfo.emoji,
+            attackerClass: myInfo.name,
+            target: targetShip.isNPC ? (targetShip.npcName || 'Enemy') : targetShip.player.slice(0, 8) + '...',
+            targetEmoji: targetInfo.emoji,
+            targetClass: targetInfo.name,
+            baseDamage: baseDamage,
+            randomRoll: randomRoll,
+            finalDamage: data.damage,
+            targetHP: newTargetHP,
+            targetMaxHP: targetInfo.stats.maxHP,
+            killed: newTargetHP <= 0,
+          });
+
+          // Auto-close modal after 5s
+          setTimeout(() => setCombatModal(null), 5000);
         } else if (lootAtTarget) {
           setAnimation({ type: 'loot', fromX, fromY, toX: targetX, toY: targetY, lootAmount: lootAtTarget.amount });
           setFloatingText({ x: targetX, y: targetY, text: `+${lootAtTarget.amount} HP`, color: 'text-green-500' });
@@ -390,12 +434,12 @@ export function GameBoard({ gameId }: GameBoardProps) {
   const isFinished = game.state === 2;
 
   return (
-    <div className="min-h-screen bg-black text-white p-4">
+    <div className="min-h-screen nebula-bg text-white p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-black gradient-text-ag">
               DARK ARENA
             </h1>
             <p className="text-gray-500">Game #{gameId}</p>
@@ -443,7 +487,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
                     console.error('Failed to start:', e);
                   }
                 }}
-                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 px-8 rounded-xl text-xl shadow-lg hover:scale-105 transition-all"
+                className="btn-ag-primary text-white font-bold py-3 px-8 rounded-xl text-xl hover:scale-105 transition-all"
               >
                 START GAME
               </button>
@@ -451,7 +495,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel - My Ship Stats */}
           <div className="lg:col-span-1 space-y-4">
             {/* My Ship Card */}
@@ -571,6 +615,14 @@ export function GameBoard({ gameId }: GameBoardProps) {
                 </div>
               </div>
             )}
+
+            {/* Back to Lobby Button */}
+            <a
+              href="/"
+              className="block w-full text-center gradient-border-ag hover:glow-blue text-white font-bold py-3 px-4 rounded-xl transition-all"
+            >
+              Back to Lobby
+            </a>
           </div>
 
           {/* Center - Game Board */}
@@ -595,7 +647,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
               </div>
 
               {/* The Grid */}
-              <div className="flex-1 grid grid-cols-8 gap-1 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-2 rounded-xl border border-indigo-800/50">
+              <div className="flex-1 grid grid-cols-8 gap-1 bg-gradient-to-br from-[#030404] via-[#1a0a30] to-[#030404] p-2 rounded-xl border border-[#3C00DC]/30 cosmic-pulse">
                 {Array.from({ length: 64 }).map((_, i) => {
                   const x = i % 8;
                   const y = Math.floor(i / 8);
@@ -629,7 +681,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
             </div>
           </div>
 
-          {/* Right Panel - All Ships */}
+          {/* Right Panel - All Ships (COMMENTED OUT)
           <div className="lg:col-span-1">
             <div className="p-4 rounded-xl border border-indigo-900/50 bg-slate-900/50">
               <h4 className="font-bold text-cyan-400 mb-4">Radar ({allShips.filter(s => s.isAlive).length} active)</h4>
@@ -693,7 +745,6 @@ export function GameBoard({ gameId }: GameBoardProps) {
                               )}
                             </div>
                           </div>
-                          {/* Mini HP bar */}
                           {ship.isAlive && (
                             <div className="mt-1 h-1 bg-gray-700 rounded-full overflow-hidden">
                               <div
@@ -709,48 +760,147 @@ export function GameBoard({ gameId }: GameBoardProps) {
               )}
             </div>
 
-            {/* Back to Lobby Button */}
             <div className="mt-4">
               <a
                 href="/"
-                className="block w-full text-center bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                className="block w-full text-center gradient-border-ag hover:glow-blue text-white font-bold py-3 px-4 rounded-xl transition-all"
               >
                 Back to Lobby
               </a>
             </div>
           </div>
+          */}
         </div>
+
+        {/* Combat Modal */}
+        {combatModal && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 cursor-pointer"
+            onClick={() => setCombatModal(null)}
+          >
+            <div
+              className="bg-gradient-to-br from-[#030404] to-[#1a0a30] border-2 border-[#FF5001]/50 rounded-2xl p-6 text-center max-w-md shadow-2xl shadow-[#FF5001]/30 cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-red-400 text-sm font-bold mb-3">⚔️ COMBAT ⚔️</div>
+
+              <div className="flex items-center justify-center gap-6 mb-4">
+                {/* Attacker */}
+                <div className="text-center">
+                  <div className="text-5xl mb-1">{combatModal.attackerEmoji}</div>
+                  <div className="text-yellow-400 font-bold">{combatModal.attacker}</div>
+                  <div className="text-gray-500 text-xs">{combatModal.attackerClass}</div>
+                </div>
+
+                {/* Arrow */}
+                <div className="text-3xl text-red-400 animate-pulse">⚔️</div>
+
+                {/* Target */}
+                <div className="text-center">
+                  <div className="text-5xl mb-1">{combatModal.targetEmoji}</div>
+                  <div className="text-cyan-400 font-bold truncate max-w-[100px]">{combatModal.target}</div>
+                  <div className="text-gray-500 text-xs">{combatModal.targetClass}</div>
+                </div>
+              </div>
+
+              {/* Damage Breakdown */}
+              <div className="bg-black/40 rounded-xl p-3 mb-4 text-left">
+                <div className="text-xs text-gray-400 mb-2 text-center font-bold">DAMAGE CALCULATION</div>
+                <div className="space-y-1 text-sm font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Base Attack:</span>
+                    <span className="text-white">{combatModal.baseDamage}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Random Roll (-5 to +5):</span>
+                    <span className={combatModal.randomRoll >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {combatModal.randomRoll >= 0 ? '+' : ''}{combatModal.randomRoll}
+                    </span>
+                  </div>
+                  <div className="border-t border-gray-600 pt-1 flex justify-between">
+                    <span className="text-yellow-400 font-bold">Total Damage:</span>
+                    <span className="text-red-400 font-bold text-lg">-{combatModal.finalDamage}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Target HP Bar */}
+              <div className="mb-3">
+                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                  <span>Target HP</span>
+                  <span className="font-mono">{combatModal.targetHP} / {combatModal.targetMaxHP}</span>
+                </div>
+                <div className="h-4 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${(combatModal.targetHP / combatModal.targetMaxHP) * 100}%`,
+                      backgroundColor: combatModal.targetHP <= 0 ? '#ef4444' :
+                        combatModal.targetHP < combatModal.targetMaxHP * 0.3 ? '#ef4444' :
+                        combatModal.targetHP < combatModal.targetMaxHP * 0.6 ? '#eab308' : '#22c55e'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Kill notification */}
+              {combatModal.killed && (
+                <div className="text-2xl font-black text-red-500 animate-bounce mt-2">
+                  💀 DESTROYED! 💀
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Game Over Overlay */}
         {isFinished && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-900 border border-purple-500/50 rounded-2xl p-8 text-center max-w-md">
-              <h2 className="text-4xl font-black mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <div className="bg-gray-900 border border-purple-500/50 rounded-2xl p-8 text-center max-w-lg">
+              <h2 className="text-4xl font-black mb-4 gradient-text-ag">
                 GAME OVER
               </h2>
               <div className="space-y-4 mb-6">
                 {game.winner !== '0x0000000000000000000000000000000000000000' && (
                   <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
                     <div className="text-yellow-400 text-sm">1ST PLACE</div>
-                    <div className="text-xl font-bold truncate">{game.winner.slice(0, 10)}...</div>
+                    {game.winner.startsWith('0xNPC') ? (
+                      <div className="text-xl font-bold text-red-400">
+                        {allShips.find(s => s.player === game.winner)?.npcName || 'NPC Enemy'}
+                      </div>
+                    ) : (
+                      <div className="text-lg font-bold text-white break-all font-mono">{game.winner}</div>
+                    )}
                   </div>
                 )}
                 {game.secondPlace !== '0x0000000000000000000000000000000000000000' && (
                   <div className="p-3 bg-gray-500/10 border border-gray-500/30 rounded-xl">
                     <div className="text-gray-400 text-sm">2ND PLACE</div>
-                    <div className="text-lg font-bold truncate">{game.secondPlace.slice(0, 10)}...</div>
+                    {game.secondPlace.startsWith('0xNPC') ? (
+                      <div className="text-lg font-bold text-red-400">
+                        {allShips.find(s => s.player === game.secondPlace)?.npcName || 'NPC Enemy'}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-bold text-white break-all font-mono">{game.secondPlace}</div>
+                    )}
                   </div>
                 )}
                 {game.thirdPlace !== '0x0000000000000000000000000000000000000000' && (
                   <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
                     <div className="text-orange-400 text-sm">3RD PLACE</div>
-                    <div className="text-lg font-bold truncate">{game.thirdPlace.slice(0, 10)}...</div>
+                    {game.thirdPlace.startsWith('0xNPC') ? (
+                      <div className="text-lg font-bold text-red-400">
+                        {allShips.find(s => s.player === game.thirdPlace)?.npcName || 'NPC Enemy'}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-bold text-white break-all font-mono">{game.thirdPlace}</div>
+                    )}
                   </div>
                 )}
               </div>
               <a
                 href="/"
-                className="inline-block bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform"
+                className="inline-block btn-ag-primary text-white font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform"
               >
                 BACK TO LOBBY
               </a>

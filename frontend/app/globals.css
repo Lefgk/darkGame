@@ -1,28 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
+  --background: #030404;
+  --foreground: #feffff;
+  --ag-blue: #3C00DC;
+  --ag-red: #FF5001;
+  --ag-yellow: #F5EB00;
+  --ag-purple: #8275A5;
+  --ag-green: #00B031;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ag-blue: var(--ag-blue);
+  --color-ag-red: var(--ag-red);
+  --color-ag-yellow: var(--ag-yellow);
+  --color-ag-purple: var(--ag-purple);
+  --color-ag-green: var(--ag-green);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #ffffff;
-  }
-}
-
-body {
-  background-color: #000000;
-  color: #ffffff;
-  font-family: var(--font-geist-sans);
 }
 
 html {
@@ -30,7 +27,151 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #030404;
+  color: #feffff;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+/* Nebula background */
+.nebula-bg {
+  background-image: url('https://ik.imagekit.io/agogmax/Antigravity/nebula-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* Custom gradient scrollbar - red to blue like antigravity */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030404;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff5001, #3c00dc);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ff6b2b, #5020ff);
+}
+
+/* Space animations */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) translateX(-50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) translateX(-50%);
+  }
+}
+
+@keyframes rocketLaunch {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes starTwinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes cosmicPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(60, 0, 220, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 80, 1, 0.4);
+  }
+}
+
+/* Utility classes */
+.float-up {
+  animation: floatUp 0.8s ease-out forwards;
+}
+
+.rocket-launch {
+  animation: rocketLaunch 2s ease-in-out infinite;
+}
+
+.wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+.star-twinkle {
+  animation: starTwinkle 2s ease-in-out infinite;
+}
+
+.cosmic-pulse {
+  animation: cosmicPulse 3s ease-in-out infinite;
+}
+
+/* Gradient text like antigravity */
+.gradient-text-ag {
+  background: linear-gradient(to right, #ff5001, #3c00dc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient border effect */
+.gradient-border-ag {
+  border: 2px solid transparent;
+  background: linear-gradient(#030404, #030404) padding-box,
+              linear-gradient(135deg, #ff5001, #3c00dc) border-box;
+}
+
+/* Glow effects */
+.glow-red {
+  box-shadow: 0 0 20px rgba(255, 80, 1, 0.5);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(60, 0, 220, 0.5);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 20px rgba(245, 235, 0, 0.5);
+}
+
+/* Button styles matching antigravity */
+.btn-ag-primary {
+  background: linear-gradient(135deg, #ff5001, #3c00dc);
+  box-shadow: 0 6px 0 0 #030404;
+  transition: all 0.2s ease;
+}
+
+.btn-ag-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 0 #030404;
+}
+
+.btn-ag-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 4px 0 0 #030404;
 }
