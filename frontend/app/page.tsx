@@ -12,35 +12,34 @@ import { IMAGES } from '@/lib/images';
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#030404] relative overflow-hidden">
-      {/* Animated Space Background - Nebula from antigravity */}
-      <div className="fixed inset-0 z-0">
-        <Image
-          src={IMAGES.NEBULA_BG}
+      {/* Space Background - Same as Antigravity main page */}
+      <div className="fixed inset-0 z-0 overflow-hidden">
+        {/* Nebula Background */}
+        <img
+          src="https://ik.imagekit.io/agogmax/Antigravity/nebula-bg.jpg"
           alt=""
-          fill
-          className="object-cover opacity-50"
-          priority
+          className="absolute inset-0 w-[200vw] h-[200vh] object-cover mix-blend-multiply opacity-30"
         />
-        {/* Gradient Overlays - Red to Blue like antigravity */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#3C00DC]/20 via-[#030404] to-[#030404]"></div>
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(60, 0, 220, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 80, 1, 0.15) 0%, transparent 50%)',
-        }}></div>
-
-        {/* Starfield */}
+        {/* Saturn Planet */}
+        <img
+          src="https://ik.imagekit.io/agogmax/Antigravity/mobile-saturn.png"
+          alt=""
+          className="fixed top-0 left-0 w-[150vw] h-auto -translate-y-1/2 mix-blend-lighten scale-125 pointer-events-none select-none"
+        />
+        {/* Starfield effect */}
         <div className="absolute inset-0 opacity-60" style={{
           backgroundImage: `
-            radial-gradient(2px 2px at 20% 30%, white, transparent),
-            radial-gradient(2px 2px at 60% 70%, white, transparent),
-            radial-gradient(1px 1px at 50% 50%, white, transparent),
-            radial-gradient(1px 1px at 80% 10%, white, transparent),
-            radial-gradient(2px 2px at 90% 60%, white, transparent),
-            radial-gradient(1px 1px at 33% 80%, white, transparent),
-            radial-gradient(1px 1px at 15% 90%, white, transparent)
+            radial-gradient(2px 2px at 10% 20%, white, transparent),
+            radial-gradient(2px 2px at 40% 60%, white, transparent),
+            radial-gradient(1px 1px at 60% 30%, white, transparent),
+            radial-gradient(2px 2px at 80% 50%, white, transparent),
+            radial-gradient(1px 1px at 25% 80%, white, transparent),
+            radial-gradient(2px 2px at 90% 10%, white, transparent),
+            radial-gradient(1px 1px at 70% 90%, white, transparent),
+            radial-gradient(1px 1px at 5% 50%, white, transparent),
+            radial-gradient(2px 2px at 50% 15%, white, transparent)
           `,
-          backgroundSize: '200% 200%',
-          backgroundPosition: '50% 50%',
-          animation: 'twinkle 200s linear infinite',
+          backgroundSize: '100% 100%',
         }}></div>
       </div>
 
@@ -75,11 +74,7 @@ export default function Home() {
         {/* Hero Section */}
         <section className="container mx-auto px-4 md:px-6 py-20 md:py-32">
           <div className="text-center space-y-8 max-w-5xl mx-auto">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full backdrop-blur-sm">
-              <Image src={IMAGES.PLS_COLOR} alt="PLS" width={20} height={20} />
-              <span className="text-[#FF5001] text-sm font-bold">LIVE ON PULSECHAIN</span>
-            </div>
+
 
             {/* Hero Image */}
             <div className="relative w-48 h-48 mx-auto">

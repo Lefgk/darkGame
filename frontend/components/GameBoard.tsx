@@ -82,13 +82,26 @@ interface CombatModal {
   randomRoll: number;
   finalDamage: number;
   targetHP: number;
+  targetPrevHP: number;
   targetMaxHP: number;
   killed: boolean;
   // Counter attack info
   counterDamage?: number;
   attackerHP?: number;
+  attackerPrevHP?: number;
   attackerMaxHP?: number;
   attackerKilled?: boolean;
+}
+
+// Loot pickup modal interface
+interface LootModal {
+  show: boolean;
+  shipEmoji: string;
+  shipClass: string;
+  lootAmount: number;
+  prevHP: number;
+  newHP: number;
+  maxHP: number;
 }
 
 export function GameBoard({ gameId }: GameBoardProps) {
@@ -101,6 +114,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
   const [animation, setAnimation] = useState<ActionAnimation | null>(null);
   const [floatingText, setFloatingText] = useState<{ x: number; y: number; text: string; color: string } | null>(null);
   const [combatModal, setCombatModal] = useState<CombatModal | null>(null);
+  const [lootModal, setLootModal] = useState<LootModal | null>(null);
   const [prevHP, setPrevHP] = useState<number | null>(null);
   const [showGameOver, setShowGameOver] = useState(true);
   const [prevTurn, setPrevTurn] = useState<number>(0);
@@ -260,7 +274,9 @@ export function GameBoard({ gameId }: GameBoardProps) {
           const myInfo = SHIP_CLASS_INFO[myShip.shipClass];
           const baseDamage = myInfo.stats.damage;
           const randomRoll = data.damage - baseDamage; // The random part (-5 to +5)
+          const targetPrevHP = targetShip.currentHP;
           const newTargetHP = Math.max(0, targetShip.currentHP - data.damage);
+          const attackerPrevHP = myShip.currentHP;
           const newAttackerHP = Math.max(0, myShip.currentHP - (data.counterDamage || 0));
           setCombatModal({
             show: true,
@@ -273,11 +289,13 @@ export function GameBoard({ gameId }: GameBoardProps) {
             baseDamage: baseDamage,
             randomRoll: randomRoll,
             finalDamage: data.damage,
+            targetPrevHP: targetPrevHP,
             targetHP: newTargetHP,
             targetMaxHP: targetInfo.stats.maxHP,
             killed: newTargetHP <= 0,
             // Counter attack info
             counterDamage: data.counterDamage,
+            attackerPrevHP: attackerPrevHP,
             attackerHP: newAttackerHP,
             attackerMaxHP: myInfo.stats.maxHP,
             attackerKilled: newAttackerHP <= 0,
@@ -288,6 +306,23 @@ export function GameBoard({ gameId }: GameBoardProps) {
         } else if (lootAtTarget) {
           setAnimation({ type: 'loot', fromX, fromY, toX: targetX, toY: targetY, lootAmount: lootAtTarget.amount });
           setFloatingText({ x: targetX, y: targetY, text: `+${lootAtTarget.amount} HP`, color: 'text-green-500' });
+
+          // Show loot pickup modal
+          const myInfo = SHIP_CLASS_INFO[myShip.shipClass];
+          const prevHP = myShip.currentHP;
+          const newHP = Math.min(myInfo.stats.maxHP, myShip.currentHP + lootAtTarget.amount);
+          setLootModal({
+            show: true,
+            shipEmoji: myInfo.emoji,
+            shipClass: myInfo.name,
+            lootAmount: lootAtTarget.amount,
+            prevHP: prevHP,
+            newHP: newHP,
+            maxHP: myInfo.stats.maxHP,
+          });
+
+          // Auto-close modal after 3s
+          setTimeout(() => setLootModal(null), 3000);
         } else {
           setAnimation({ type: 'move', fromX, fromY, toX: targetX, toY: targetY });
         }
@@ -348,7 +383,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
     const isSelected = selectedTile?.x === x && selectedTile?.y === y;
     const canSeeLoot = isAdjacentToPlayer(x, y) || (myShip?.x === x && myShip?.y === y);
 
-    let tileClass = 'aspect-square border transition-all duration-200 relative flex items-center justify-center text-2xl overflow-hidden ';
+    let tileClass = 'aspect-square border transition-all duration-200 relative flex items-center justify-center text-lg overflow-hidden ';
 
     // Base styling - space theme
     if (!inZone) {
@@ -400,17 +435,17 @@ export function GameBoard({ gameId }: GameBoardProps) {
         {/* Ship */}
         {ship && ship.isAlive && (
           <div className={`relative z-10 ${isMyShip ? 'animate-pulse' : ''} ${isNPCShip ? 'filter hue-rotate-180' : ''}`}>
-            <span className={`text-3xl drop-shadow-lg ${isNPCShip ? 'filter brightness-75' : ''}`}>
+            <span className={`text-xl drop-shadow-lg ${isNPCShip ? 'filter brightness-75' : ''}`}>
               {SHIP_CLASS_INFO[ship.shipClass].emoji}
             </span>
             {/* NPC indicator */}
             {isNPCShip && (
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] text-red-400 font-bold">
+              <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[6px] text-red-400 font-bold">
                 ☠
               </span>
             )}
             {/* HP bar */}
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full transition-all"
                 style={{
@@ -430,12 +465,12 @@ export function GameBoard({ gameId }: GameBoardProps) {
 
         {/* Dead ship / Wreckage */}
         {ship && !ship.isAlive && (
-          <span className="text-xl opacity-30">💀</span>
+          <span className="text-sm opacity-30">💀</span>
         )}
 
         {/* Loot - always visible */}
         {lootItem && !ship && (
-          <span className="text-xl animate-pulse text-yellow-400">⚡</span>
+          <span className="text-sm animate-pulse text-yellow-400">⚡</span>
         )}
 
         {/* Attack animation - laser beam effect */}
@@ -681,9 +716,9 @@ export function GameBoard({ gameId }: GameBoardProps) {
           </div>
 
           {/* Center - Game Board */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 max-w-xl mx-auto">
             {/* Column Labels */}
-            <div className="grid grid-cols-8 gap-1 mb-1 px-6">
+            <div className="grid grid-cols-8 gap-0.5 mb-1 px-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="text-center text-xs text-gray-500 font-bold">
                   {String.fromCharCode(65 + i)}
@@ -702,7 +737,7 @@ export function GameBoard({ gameId }: GameBoardProps) {
               </div>
 
               {/* The Grid */}
-              <div className="flex-1 grid grid-cols-8 gap-1 bg-gradient-to-br from-[#030404] via-[#1a0a30] to-[#030404] p-2 rounded-xl border border-[#3C00DC]/30 cosmic-pulse">
+              <div className="flex-1 grid grid-cols-8 gap-0.5 bg-gradient-to-br from-[#030404] via-[#1a0a30] to-[#030404] p-1 rounded-xl border border-[#3C00DC]/30 cosmic-pulse">
                 {Array.from({ length: 64 }).map((_, i) => {
                   const x = i % 8;
                   const y = Math.floor(i / 8);
@@ -882,35 +917,27 @@ export function GameBoard({ gameId }: GameBoardProps) {
                 </div>
               </div>
 
-              {/* HP Bars - Side by Side */}
-              <div className="grid grid-cols-2 gap-6 mb-6 max-w-lg mx-auto">
-                {/* Target HP */}
-                <div>
-                  <div className="flex justify-between text-base text-gray-400 mb-2">
-                    <span className="text-cyan-400 font-bold">Target</span>
-                    <span className="font-mono">{combatModal.targetHP} / {combatModal.targetMaxHP}</span>
-                  </div>
-                  <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.max(0, (combatModal.targetHP / combatModal.targetMaxHP) * 100)}%`,
-                        backgroundColor: combatModal.targetHP <= 0 ? '#ef4444' :
-                          combatModal.targetHP < combatModal.targetMaxHP * 0.3 ? '#ef4444' :
-                          combatModal.targetHP < combatModal.targetMaxHP * 0.6 ? '#eab308' : '#22c55e'
-                      }}
-                    />
-                  </div>
-                  {combatModal.killed && (
-                    <div className="text-red-500 font-bold text-sm mt-1 animate-pulse">DESTROYED</div>
-                  )}
-                </div>
+              {/* HP Bars - Side by Side with HP Change Display */}
+              <div className="grid grid-cols-2 gap-6 mb-6 max-w-lg mx-auto relative">
+                {/* Vertical Separator */}
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gray-500/50 to-transparent -translate-x-1/2"></div>
 
-                {/* Attacker HP (after counter) */}
+                {/* You (Attacker) - LEFT */}
                 <div>
-                  <div className="flex justify-between text-base text-gray-400 mb-2">
+                  <div className="flex justify-between items-center text-base text-gray-400 mb-2">
                     <span className="text-yellow-400 font-bold">You</span>
-                    <span className="font-mono">{combatModal.attackerHP ?? '-'} / {combatModal.attackerMaxHP ?? '-'}</span>
+                    <div className="flex items-center gap-2 font-mono">
+                      {combatModal.counterDamage && combatModal.counterDamage > 0 ? (
+                        <>
+                          <span className="text-gray-500 line-through text-sm">{combatModal.attackerPrevHP}</span>
+                          <span className="text-red-400">→</span>
+                          <span className="text-white font-bold">{combatModal.attackerHP}</span>
+                          <span className="text-red-500 font-bold">(-{combatModal.counterDamage})</span>
+                        </>
+                      ) : (
+                        <span className="text-white font-bold">{combatModal.attackerHP} HP</span>
+                      )}
+                    </div>
                   </div>
                   <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
                     <div
@@ -924,6 +951,33 @@ export function GameBoard({ gameId }: GameBoardProps) {
                     />
                   </div>
                   {combatModal.attackerKilled && (
+                    <div className="text-red-500 font-bold text-sm mt-1 animate-pulse">DESTROYED</div>
+                  )}
+                </div>
+
+                {/* Target (Enemy) - RIGHT */}
+                <div>
+                  <div className="flex justify-between items-center text-base text-gray-400 mb-2">
+                    <span className="text-cyan-400 font-bold">Target</span>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-gray-500 line-through text-sm">{combatModal.targetPrevHP}</span>
+                      <span className="text-red-400">→</span>
+                      <span className="text-white font-bold">{combatModal.targetHP}</span>
+                      <span className="text-red-500 font-bold">(-{combatModal.finalDamage})</span>
+                    </div>
+                  </div>
+                  <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(0, (combatModal.targetHP / combatModal.targetMaxHP) * 100)}%`,
+                        backgroundColor: combatModal.targetHP <= 0 ? '#ef4444' :
+                          combatModal.targetHP < combatModal.targetMaxHP * 0.3 ? '#ef4444' :
+                          combatModal.targetHP < combatModal.targetMaxHP * 0.6 ? '#eab308' : '#22c55e'
+                      }}
+                    />
+                  </div>
+                  {combatModal.killed && (
                     <div className="text-red-500 font-bold text-sm mt-1 animate-pulse">DESTROYED</div>
                   )}
                 </div>
@@ -952,6 +1006,67 @@ export function GameBoard({ gameId }: GameBoardProps) {
                       💀 YOU DIED! 💀
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Loot Pickup Modal */}
+        {lootModal && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 cursor-pointer"
+            onClick={() => setLootModal(null)}
+          >
+            <div
+              className="bg-gradient-to-br from-[#030404] to-[#0a2010] border-2 border-green-500/50 rounded-3xl p-10 text-center max-w-md w-full mx-4 shadow-2xl shadow-green-500/30 cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-green-400 text-2xl font-bold mb-6">⚡ ENERGY COLLECTED ⚡</div>
+
+              <div className="text-center mb-8">
+                <div className="text-8xl mb-4 animate-bounce">{lootModal.shipEmoji}</div>
+                <div className="text-yellow-400 font-bold text-2xl">Your {lootModal.shipClass}</div>
+              </div>
+
+              {/* Energy Amount */}
+              <div className="bg-black/40 rounded-xl p-6 mb-6">
+                <div className="text-5xl font-black text-green-400 mb-2 animate-pulse">
+                  +{lootModal.lootAmount} HP
+                </div>
+                <div className="text-gray-400 text-lg">Energy Absorbed</div>
+              </div>
+
+              {/* HP Bar with Change */}
+              <div className="max-w-xs mx-auto">
+                <div className="flex justify-between items-center text-base text-gray-400 mb-2">
+                  <span className="text-yellow-400 font-bold">Your HP</span>
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="text-gray-500 text-sm">{lootModal.prevHP}</span>
+                    <span className="text-green-400">→</span>
+                    <span className="text-white font-bold">{lootModal.newHP}</span>
+                    <span className="text-green-500 font-bold">(+{lootModal.lootAmount})</span>
+                  </div>
+                </div>
+                <div className="h-5 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${(lootModal.newHP / lootModal.maxHP) * 100}%`,
+                      backgroundColor: lootModal.newHP < lootModal.maxHP * 0.3 ? '#ef4444' :
+                        lootModal.newHP < lootModal.maxHP * 0.6 ? '#eab308' : '#22c55e'
+                    }}
+                  />
+                </div>
+                <div className="text-gray-500 text-sm mt-1">
+                  {lootModal.newHP} / {lootModal.maxHP}
+                </div>
+              </div>
+
+              {/* Max HP notification */}
+              {lootModal.newHP >= lootModal.maxHP && (
+                <div className="mt-4 text-yellow-400 font-bold text-lg animate-pulse">
+                  ✨ FULLY CHARGED! ✨
                 </div>
               )}
             </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount } from 'wagmi';
 import { NFTShipSelector } from './NFTShipSelector';
+import { useNickname } from './NicknameRegistry';
 import { API_URL } from '@/lib/constants';
 
 interface GameData {
@@ -25,6 +26,7 @@ const GAME_STATES = ['Lobby', 'Active', 'Finished'];
 export function ActiveGames() {
     const router = useRouter();
     const { address, isConnected } = useAccount();
+    const nickname = useNickname(address);
     const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
     const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(null);
     const [games, setGames] = useState<GameData[]>([]);
@@ -113,6 +115,7 @@ export function ActiveGames() {
                     player: address,
                     tokenId,
                     journeyId,
+                    nickname: nickname || undefined,
                 }),
             });
 

@@ -23,6 +23,7 @@ const SHIP_CLASSES = {
 // Types
 interface Ship {
   player: string;
+  nickname?: string;
   shipClass: number;
   currentHP: number;
   maxHP: number;
@@ -36,6 +37,13 @@ interface Ship {
   journeyId: number;
   isNPC?: boolean;
   npcName?: string;
+}
+
+// Helper: Get display name for a ship (nickname or shortened address)
+function getDisplayName(ship: Ship): string {
+  if (ship.isNPC) return ship.npcName || 'NPC';
+  if (ship.nickname) return ship.nickname;
+  return `${ship.player.slice(0, 6)}...${ship.player.slice(-4)}`;
 }
 
 interface Loot {
@@ -191,7 +199,7 @@ app.post('/game/create', (req, res) => {
 // Join game
 app.post('/game/:gameId/join', (req, res) => {
   const gameId = parseInt(req.params.gameId);
-  const { player, tokenId, journeyId, signature } = req.body;
+  const { player, tokenId, journeyId, nickname, signature } = req.body;
 
   const game = games.get(gameId);
   if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -210,6 +218,7 @@ app.post('/game/:gameId/join', (req, res) => {
 
   const ship: Ship = {
     player,
+    nickname: nickname || undefined,
     shipClass,
     currentHP: stats.hp,
     maxHP: stats.hp,
@@ -224,7 +233,8 @@ app.post('/game/:gameId/join', (req, res) => {
   };
 
   game.ships.push(ship);
-  game.actionLog.push(`${player} joined with ${stats.name}`);
+  const displayName = getDisplayName(ship);
+  game.actionLog.push(`${displayName} joined with ${stats.name}`);
 
   res.json({ success: true, ship, playerCount: game.ships.length });
 });
@@ -304,7 +314,8 @@ app.post('/game/:gameId/action', (req, res) => {
     ship.currentHP -= counterDamage;
     target.damageDealt += counterDamage;
 
-    const targetName = target.isNPC ? target.npcName : target.player;
+    const targetName = getDisplayName(target);
+    const attackerName = getDisplayName(ship);
 
     // Store attacker's original position for swap/push
     const attackerOrigX = ship.x;
@@ -317,8 +328,8 @@ app.post('/game/:gameId/action', (req, res) => {
       ship.isAlive = false;
       target.kills++;
       attackerKilled = true;
-      game.actionLog.push(`${targetName} counter-attacked ${player} for ${counterDamage} damage`);
-      game.actionLog.push(`${player} was destroyed!`);
+      game.actionLog.push(`${targetName} counter-attacked ${attackerName} for ${counterDamage} damage`);
+      game.actionLog.push(`${attackerName} was destroyed!`);
       game.loot.push({ x: ship.x, y: ship.y, amount: 25, collected: false });
     }
 
@@ -333,7 +344,7 @@ app.post('/game/:gameId/action', (req, res) => {
         ship.y = targetY;
       }
 
-      game.actionLog.push(`${player} attacked ${targetName} for ${damage} damage`);
+      game.actionLog.push(`${attackerName} attacked ${targetName} for ${damage} damage`);
       game.actionLog.push(`${targetName} was destroyed!`);
 
       // Drop loot on death (at attacker's original position so they don't auto-collect)
@@ -352,7 +363,7 @@ app.post('/game/:gameId/action', (req, res) => {
       target.x = attackerOrigX;
       target.y = attackerOrigY;
 
-      game.actionLog.push(`${player} attacked ${targetName} for ${damage} damage`);
+      game.actionLog.push(`${attackerName} attacked ${targetName} for ${damage} damage`);
       game.actionLog.push(`${targetName} counter-attacked for ${counterDamage} damage`);
     }
 
@@ -372,15 +383,17 @@ app.post('/game/:gameId/action', (req, res) => {
     ship.y = targetY;
     ship.hasActed = true;
 
+    const moverName = getDisplayName(ship);
+
     // Check for loot pickup
     const loot = game.loot.find(l => !l.collected && l.x === targetX && l.y === targetY);
     if (loot) {
       ship.currentHP = Math.min(ship.maxHP, ship.currentHP + loot.amount);
       loot.collected = true;
-      game.actionLog.push(`${player} collected ${loot.amount} HP`);
+      game.actionLog.push(`${moverName} collected ${loot.amount} HP`);
     }
 
-    game.actionLog.push(`${player} moved to (${targetX}, ${targetY})`);
+    game.actionLog.push(`${moverName} moved to (${targetX}, ${targetY})`);
     res.json({ success: true, action: 'move', game: serializeGame(game) });
   }
 });
@@ -436,7 +449,7 @@ function advanceTurn(game: Game) {
       if (ship.isAlive && !isInSafeZone(ship.x, ship.y, game.zoneOffset, game.zoneSize)) {
         const damage = 20;
         ship.currentHP -= damage;
-        const name = ship.isNPC ? ship.npcName : ship.player;
+        const name = getDisplayName(ship);
         game.actionLog.push(`${name} takes ${damage} zone damage`);
 
         if (ship.currentHP <= 0) {
@@ -471,7 +484,7 @@ function performNPCAction(game: Game, npc: Ship) {
       npc.damageDealt += damage;
       npc.hasActed = true;
 
-      const targetName = enemy.player;
+      const targetName = getDisplayName(enemy);
       game.actionLog.push(`${npc.npcName} attacks ${targetName} for ${damage} damage!`);
 
       if (enemy.currentHP <= 0) {
